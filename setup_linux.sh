@@ -21,22 +21,24 @@ if ! grep -q 'setxkbmap -option caps:swapescape' ~/.profile; then
   echo "setxkbmap -option caps:swapescape" >> ~/.profile
 fi
 
+# Install solarized color-scheme.
+sudo apt-get install dconf-cli
+git clone https://github.com/Anthony25/gnome-terminal-colors-solarized.git
+cd gnome-terminal-colors-solarized
+read -n1 -r -p 'Create "Solarized" terminal profile.  Press any key to continue.'
+./install.sh
+cd ..
+rm -rf gnome-terminal-colors-solarized
+
 # Configure terminal and Git.
 cp -i .bash_aliases ~/
 cp -i .gitconfig ~/
 cp -i .screenrc ~/
 cp -i .vimrc ~/
-git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
+if [ -d "~/.vim/bundle/Vundle.vim" ]; then
+  git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
+fi
 vim +PluginInstall +qall
 if ! grep -q 'Custom bashrc additions' ~/.bashrc; then
   cat .bashrc_additions >> ~/.bashrc
 fi
-
-# Install solarized color-scheme.
-sudo apt-get install dconf-cli dconf-editor
-git clone https://github.com/oz123/solarized-mate-terminal.git
-cd solarized-mate-terminal
-read -n1 -r -p 'Create "Solarized" terminal profile.  Press any key to continue.'
-bash solarized-mate.sh dark Solarized
-cd ..
-rm -rf solarized-mate-terminal
