@@ -1,0 +1,27 @@
+[user]
+  name = Andrew Goessling
+  email = agoessling@gmail.com
+
+[alias]
+  br = branch
+  ca = commit -a --amend
+  ci = commit -am
+  cl = clean -df
+  co = checkout
+  di = diff
+  dt = difftool
+  lg = log --graph --abbrev-commit --decorate --date=relative
+  lo = log --oneline --decorate
+  no = diff --name-only
+  st = status
+  wc = whatchanged
+  grepall = !git grep
+
+[color]
+  ui = auto
+
+[diff]
+  tool = vimdiff
+
+[credential]
+  helper = corpsso

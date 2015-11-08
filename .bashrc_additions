@@ -1,0 +1,19 @@
+
+# Custom bashrc additions
+
+# git prompt
+function _parse_git_dirty {
+    [[ $(git status 2> /dev/null | tail -n1) != "nothing to commit, working directory clean" ]] && echo "*"
+}
+function _parse_git_branch {
+    git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e "s/* \(.*\)/[\1$(_parse_git_dirty)] /"
+}
+PS1='$(_parse_git_branch)'$PS1
+
+# screen
+if [ -z $STY ]; then
+    sr
+fi
+
+# note to self
+PS1=$PS1
