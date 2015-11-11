@@ -15,7 +15,7 @@ if ! dpkg -s google-chrome-stable | grep -q 'Status: install ok installed'; then
 fi
 
 # Swap Caps-Lock with Escape.
-if ! grep -q 'setxkbmap -option caps:swapescape' ~/.profile; then
+if ! grep -q 'setxkbmap -option caps:escape' ~/.profile; then
   echo "" >> ~/.profile
   echo "# Swap Caps-Lock with Escape." >> ~/.profile
   echo "setxkbmap -option caps:swapescape" >> ~/.profile
