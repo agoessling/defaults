@@ -37,8 +37,8 @@ cp -i .screenrc ~/
 if [[ ! -d ~/.vim/bundle/Vundle.vim ]]; then
   git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
 fi
-vim +PluginInstall +qall
 cp -i .vimrc ~/
+vim +PluginInstall +qall
 if ! grep -q 'Custom bashrc additions' ~/.bashrc; then
   cat .bashrc_additions >> ~/.bashrc
 fi
