@@ -2,6 +2,9 @@
   name = Andrew Goessling
   email = agoessling@gmail.com
 
+[core]
+  editor = vim
+
 [alias]
   br = branch
   ca = commit -a --amend
