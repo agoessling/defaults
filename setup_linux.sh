@@ -17,8 +17,8 @@ fi
 # Swap Caps-Lock with Escape.
 if ! grep -q 'setxkbmap -option caps:escape' ~/.profile; then
   echo "" >> ~/.profile
-  echo "# Swap Caps-Lock with Escape." >> ~/.profile
-  echo "setxkbmap -option caps:swapescape" >> ~/.profile
+  echo "# Make Caps-Lock a second Escape." >> ~/.profile
+  echo "setxkbmap -option caps:escape" >> ~/.profile
 fi
 
 # Install solarized color-scheme.
