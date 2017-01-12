@@ -85,4 +85,6 @@ au BufNewFile,BufRead *
   \   set textwidth=80 |
   \ elseif &filetype == 'python' |
   \   set textwidth=80 |
+  \ elseif &filetype == 'matlab' |
+  \   set textwidth=80 |
   \ endif
