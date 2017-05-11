@@ -2,8 +2,8 @@
 # Custom bashrc additions
 
 # Set default editor
-VISUAL=vim
-EDITOR=$VISUAL
+export VISUAL=vim
+export EDITOR=$VISUAL
 
 # git prompt
 function _parse_git_dirty {
