@@ -55,11 +55,6 @@ set foldnestmax=2
 set nofoldenable
 
 " key mappings
-nmap <ESC>u :noh<CR>
-nmap <ESC>n :set number!<CR>
-nmap <ESC>p :set paste!<CR>
-nmap <ESC>w :set wrap!<CR>
-nmap <ESC>k :set tabstop=8 softtabstop=8 shiftwidth=8 noexpandtab<CR>
 map <C-J> :bnext<CR>
 map <C-K> :bprev<CR>
 
