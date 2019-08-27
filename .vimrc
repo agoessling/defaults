@@ -75,14 +75,17 @@ au BufNewFile,BufRead *
   \ if &filetype == 'java' |
   \   set textwidth=100 |
   \ elseif &filetype == 'cpp' |
-  \   set textwidth=80 |
+  \   set textwidth=100 |
   \ elseif &filetype == 'c' |
-  \   set textwidth=80 |
+  \   set textwidth=100 |
   \ elseif &filetype == 'python' |
-  \   set textwidth=80 |
+  \   set textwidth=100 |
   \   set expandtab |
   \   set shiftwidth=2 |
   \   set softtabstop=2 |
   \ elseif &filetype == 'matlab' |
-  \   set textwidth=80 |
+  \   set textwidth=100 |
   \ endif
+
+" CTRLP
+let g:ctrlp_user_command = ['.git', 'cd %s && git ls-files . -co --exclude-standard', 'find %s -type f']
