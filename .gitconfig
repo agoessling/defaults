@@ -25,6 +25,3 @@
 
 [diff]
   tool = vimdiff
-
-[credential]
-  helper = corpsso
