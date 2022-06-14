@@ -49,11 +49,6 @@ set ignorecase
 set smartcase
 set incsearch
 
-" folding
-set foldmethod=syntax
-set foldnestmax=2
-set nofoldenable
-
 " key mappings
 map <C-J> :bnext<CR>
 map <C-K> :bprev<CR>
