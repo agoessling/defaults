@@ -2,7 +2,7 @@
 # Custom bashrc additions
 
 # Set default editor
-export VISUAL=vim
+export VISUAL=nvim
 export EDITOR=$VISUAL
 
 # git prompt
@@ -14,10 +14,8 @@ function _parse_git_branch {
 }
 PS1='$(_parse_git_branch)'$PS1
 
-# screen
-if [ -z $STY ]; then
-    sr
+# Tmux -- Attach to existing detached session or create new session
+if [ -n "$PS1" ] && [ -z "$TMUX" ]; then
+  ATTACH_OPT=$(tmux ls | grep -vq attached && echo "attach -d")
+  exec tmux $ATTACH_OPT
 fi
-
-# note to self
-PS1=$PS1

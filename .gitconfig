@@ -3,7 +3,7 @@
   email = agoessling@gmail.com
 
 [core]
-  editor = vim
+  editor = nvim
 
 [alias]
   br = branch
@@ -24,4 +24,4 @@
   ui = auto
 
 [diff]
-  tool = vimdiff
+  tool = nvim -d
