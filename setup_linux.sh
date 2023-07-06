@@ -12,7 +12,9 @@ sudo apt-get -y install \
     pip \
     tmux \
     dconf-cli \
-    uuid-runtime
+    uuid-runtime \
+    npm \
+    python3-venv \
 
 # Install tmux configuration.
 cp tmux/.tmux.conf ~/
