@@ -15,6 +15,7 @@ sudo apt-get -y install \
     uuid-runtime \
     npm \
     python3-venv \
+    ripgrep \
 
 # Install tmux configuration.
 cp tmux/.tmux.conf ~/
