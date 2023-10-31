@@ -48,7 +48,7 @@ fi
 
 # Install NVIM configuration.
 if [ ! -d ~/.config/nvim ]; then
-  git clone git@github.com:agoessling/nvim_config.git ~/.config/nvim
+  git clone https://github.com/agoessling/nvim_config.git ~/.config/nvim
 else
   git pull origin master
 fi
