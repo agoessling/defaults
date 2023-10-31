@@ -16,6 +16,7 @@ sudo apt-get -y install \
     npm \
     python3-venv \
     ripgrep \
+    libfuse2 \
 
 # Install tmux configuration.
 cp tmux/.tmux.conf ~/
