@@ -14,8 +14,9 @@ function _parse_git_branch {
 }
 PS1='$(_parse_git_branch)'$PS1
 
-# Tmux -- Attach to existing detached session or create new session
-if [ -n "$PS1" ] && [ -z "$TMUX" ]; then
-  ATTACH_OPT=$(tmux ls | grep -vq attached && echo "attach -d")
+# Tmux -- Attach to existing detached session or create new session.
+# Skip non-TTY shells (for example VS Code environment probes).
+if [ -n "$PS1" ] && [ -z "$TMUX" ] && [ -t 0 ] && [ -t 1 ] && command -v tmux >/dev/null 2>&1; then
+  ATTACH_OPT=$(tmux ls 2>/dev/null | grep -vq attached && echo "attach -d")
   exec tmux $ATTACH_OPT
 fi
