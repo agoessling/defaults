@@ -24,4 +24,7 @@
   ui = auto
 
 [diff]
-  tool = nvim -d
+  tool = nvimdiff
+
+[difftool "nvimdiff"]
+  cmd = nvim -d "$LOCAL" "$REMOTE"

@@ -17,15 +17,17 @@ get_profile_name() {
 }
 
 default_profile_name() {
-  local uuid=$(default_profile_uuid)
-  get_profile_name ${uuid}
+  local uuid
+  uuid=$(default_profile_uuid)
+  get_profile_name "$uuid"
 }
 
 get_profile_uuid() {
-  local profiles=$(gsettings get org.gnome.Terminal.ProfilesList list | tr "',[]" " ")
+  local profiles
+  profiles=$(gsettings get org.gnome.Terminal.ProfilesList list | tr "',[]" " ")
   for profile in ${profiles[@]}; do
     if [ "$(get_profile_name "$profile")" = "$1" ]; then
-      echo $profile
+      echo "$profile"
     fi
   done
 }
@@ -39,7 +41,13 @@ set_font() {
   set_param "$1" "use-system-font" false
 }
 
+gnome_terminal_available() {
+  command -v gsettings >/dev/null 2>&1 &&
+    gsettings list-schemas | grep -Fxq "org.gnome.Terminal.ProfilesList"
+}
+
 setup_gruvbox_colors() {
+  local uuid
   uuid=$(default_profile_uuid)
   set_param "$uuid" use-theme-colors "false"
   set_param "$uuid" use-theme-transparency "false"

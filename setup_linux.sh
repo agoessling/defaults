@@ -7,19 +7,57 @@ trap 'echo "ERROR: ${BASH_SOURCE[0]}:${LINENO}: ${BASH_COMMAND}" >&2' ERR
 info()  { printf '\033[1;34m%s\033[0m\n' "$*"; }
 ok()    { printf '\033[1;32m%s\033[0m\n' "$*"; }
 
-install_if_missing() {
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$script_dir"
+
+install_if_changed() {
   local src="$1" dst="$2"
   mkdir -p "$(dirname "$dst")"
 
-  if [ -e "$dst" ]; then
-    info "Skipping copy: $dst already exists"
+  if [ -e "$dst" ] && cmp -s "$src" "$dst"; then
+    info "Up to date: $dst"
   else
-    cp "$src" "$dst"
-    ok "Installed: $dst"
+    install -m 0644 "$src" "$dst"
+    ok "Updated: $dst"
   fi
 }
 
-source "$(dirname "$0")/terminal_config.sh"
+ensure_line() {
+  local file="$1" line="$2"
+  mkdir -p "$(dirname "$file")"
+  touch "$file"
+
+  if grep -Fxq "$line" "$file"; then
+    info "Line already present: $file"
+  else
+    printf '%s\n' "$line" >> "$file"
+    ok "Added line: $file"
+  fi
+}
+
+ensure_git_defaults_include() {
+  local file="$1"
+  local include_path="$2"
+  mkdir -p "$(dirname "$file")"
+  touch "$file"
+
+  if git config --file "$file" --get-all include.path 2>/dev/null | grep -Fxq "$include_path"; then
+    info "Git include already present: $file"
+  else
+    local tmp
+    tmp="$(mktemp)"
+    {
+      printf '[include]\n'
+      printf '  path = %s\n\n' "$include_path"
+      cat "$file"
+    } > "$tmp"
+    install -m 0644 "$tmp" "$file"
+    rm -f "$tmp"
+    ok "Added Git defaults include: $file"
+  fi
+}
+
+source "$script_dir/terminal_config.sh"
 
 # install apt packages.
 sudo apt-get update
@@ -32,14 +70,23 @@ sudo apt-get -y install --no-install-recommends \
     npm \
     python3-venv \
     ripgrep \
+    xclip \
+    fzf \
+    fd-find \
+    bat \
+    fuse3 \
     libfuse2
 
 # Install tmux configuration.
-cp tmux/.tmux.conf ~/
+install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux
-cp tmux/tmux-colorscheme.conf ~/.tmux/
+install_if_changed "tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
+ensure_line "$HOME/.tmux.conf" "source-file ~/.tmux.defaults.conf"
 if [ ! -d ~/.tmux/plugins/tpm ]; then
   git clone --depth=1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+fi
+if [ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]; then
+  "$HOME/.tmux/plugins/tpm/bin/install_plugins"
 fi
 
 # Install Chrome.
@@ -51,14 +98,11 @@ if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
 fi
 
 # Swap Caps-Lock with Escape.
-if ! grep -q 'setxkbmap -option caps:escape' ~/.profile; then
-  echo "" >> ~/.profile
-  echo "# Make Caps-Lock a second Escape." >> ~/.profile
-  echo "setxkbmap -option caps:escape" >> ~/.profile
-fi
+ensure_line "$HOME/.profile" "# Make Caps-Lock a second Escape."
+ensure_line "$HOME/.profile" 'if command -v setxkbmap >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then setxkbmap -option caps:escape; fi'
 
 # Install recent NeoVim (AppImage) - atomic install + basic sanity checks
-if ! command -v nvim &> /dev/null; then
+if ! command -v nvim >/dev/null 2>&1 || ! nvim --version >/dev/null 2>&1; then
   tmp="$(mktemp)"
   url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"
 
@@ -111,6 +155,44 @@ install_vscode() {
 
 install_vscode
 
+# Install Bazelisk and provide bazel shim.
+install_bazelisk() {
+  if command -v bazelisk >/dev/null 2>&1; then
+    echo "Bazelisk already installed: $(bazelisk version | head -n 1)"
+    if ! command -v bazel >/dev/null 2>&1; then
+      sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+    fi
+    return 0
+  fi
+
+  local arch url tmp
+  case "$(uname -m)" in
+    x86_64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *)
+      echo "Unsupported architecture for Bazelisk: $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+
+  url="https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-${arch}"
+  tmp="$(mktemp)"
+
+  wget --https-only --tries=5 --timeout=20 --waitretry=2 \
+       -O "$tmp" "$url"
+
+  test -s "$tmp"
+  sudo install -m 0755 "$tmp" /usr/local/bin/bazelisk
+  rm -f "$tmp"
+
+  sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+
+  /usr/local/bin/bazelisk version >/dev/null
+  echo "Installed Bazelisk: $(bazelisk version | head -n 1)"
+}
+
+install_bazelisk
+
 # Download patched fonts.
 mkdir -p ~/.local/share/fonts
 wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Regular/HackNerdFont-Regular.ttf
@@ -118,17 +200,23 @@ wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis
 wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Italic/HackNerdFont-Italic.ttf
 wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/BoldItalic/HackNerdFont-BoldItalic.ttf
 
-# Setup terminal colorscheme
-setup_gruvbox_colors
+if gnome_terminal_available; then
+  # Setup terminal colorscheme.
+  setup_gruvbox_colors
 
-# Change default font for gnome terminal
-set_font "$uuid" "Hack Nerd Font 10"
-
-# Configure Bash
-install_if_missing ".bash_aliases" "$HOME/.bash_aliases"
-if ! grep -q 'Custom bashrc additions' ~/.bashrc; then
-  cat .bashrc >> ~/.bashrc
+  # Change default font for gnome terminal.
+  set_font "$(default_profile_uuid)" "Hack Nerd Font 10"
+else
+  info "Skipping GNOME Terminal configuration: schema not available"
 fi
 
+# Configure Bash
+install_if_changed ".bash_aliases" "$HOME/.bash_aliases.defaults"
+ensure_line "$HOME/.bash_aliases" '[ -f "$HOME/.bash_aliases.defaults" ] && . "$HOME/.bash_aliases.defaults"'
+install_if_changed ".bashrc" "$HOME/.bashrc.defaults"
+ensure_line "$HOME/.bashrc" '# Load managed defaults.'
+ensure_line "$HOME/.bashrc" '[ -f "$HOME/.bashrc.defaults" ] && . "$HOME/.bashrc.defaults"'
+
 # Configure Git
-install_if_missing ".gitconfig" "$HOME/.gitconfig"
+install_if_changed ".gitconfig" "$HOME/.gitconfig.defaults"
+ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
