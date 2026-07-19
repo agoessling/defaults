@@ -66,6 +66,8 @@ sudo apt-get -y install --no-install-recommends \
     python3-pip \
     tmux \
     dconf-cli \
+    gnome-terminal \
+    libglib2.0-bin \
     uuid-runtime \
     npm \
     python3-venv \
@@ -200,14 +202,26 @@ wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis
 wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Italic/HackNerdFont-Italic.ttf
 wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/BoldItalic/HackNerdFont-BoldItalic.ttf
 
-if gnome_terminal_available; then
-  # Setup terminal colorscheme.
-  setup_gruvbox_colors
+if ! gnome_terminal_available &&
+   [ -f /usr/share/glib-2.0/schemas/org.gnome.Terminal.gschema.xml ] &&
+   command -v glib-compile-schemas >/dev/null 2>&1; then
+  info "Refreshing GLib schema cache"
+  sudo glib-compile-schemas /usr/share/glib-2.0/schemas
+fi
 
-  # Change default font for gnome terminal.
-  set_font "$(default_profile_uuid)" "Hack Nerd Font 10"
+if gnome_terminal_available; then
+  profile_uuid="$(default_profile_uuid)"
+
+  if [ -n "$profile_uuid" ]; then
+    # Setup terminal colorscheme and font.
+    setup_gruvbox_colors
+    set_font "$profile_uuid" "Hack Nerd Font 10"
+    ok "Configured GNOME Terminal profile: $profile_uuid"
+  else
+    info "Skipping GNOME Terminal configuration: no default profile"
+  fi
 else
-  info "Skipping GNOME Terminal configuration: schema not available"
+  info "Skipping GNOME Terminal configuration: schema unavailable after refresh"
 fi
 
 # Configure Bash

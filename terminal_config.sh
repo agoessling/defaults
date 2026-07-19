@@ -43,7 +43,7 @@ set_font() {
 
 gnome_terminal_available() {
   command -v gsettings >/dev/null 2>&1 &&
-    gsettings list-schemas | grep -Fxq "org.gnome.Terminal.ProfilesList"
+    gsettings get org.gnome.Terminal.ProfilesList default >/dev/null 2>&1
 }
 
 setup_gruvbox_colors() {
