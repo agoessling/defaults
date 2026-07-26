@@ -62,6 +62,8 @@ source "$script_dir/terminal_config.sh"
 # install apt packages.
 sudo apt-get update
 sudo apt-get -y install --no-install-recommends \
+    ca-certificates \
+    curl \
     git \
     python3-pip \
     tmux \
@@ -77,7 +79,8 @@ sudo apt-get -y install --no-install-recommends \
     fd-find \
     bat \
     fuse3 \
-    libfuse2
+    libfuse2 \
+    wget
 
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
@@ -126,6 +129,8 @@ fi
 # Install NVIM configuration.
 if [ ! -d ~/.config/nvim ]; then
   git clone https://github.com/agoessling/nvim_config.git ~/.config/nvim
+elif [ -n "$(git -C ~/.config/nvim status --porcelain)" ]; then
+  info "Skipping Neovim config update: ~/.config/nvim has local changes"
 else
   git -C ~/.config/nvim pull --ff-only
 fi
