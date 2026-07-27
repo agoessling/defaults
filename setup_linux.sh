@@ -63,6 +63,7 @@ source "$script_dir/terminal_config.sh"
 sudo apt-get update
 sudo apt-get -y install --no-install-recommends \
     ca-certificates \
+    build-essential \
     curl \
     git \
     python3-pip \
@@ -80,6 +81,7 @@ sudo apt-get -y install --no-install-recommends \
     bat \
     fuse3 \
     libfuse2 \
+    unzip \
     wget
 
 # Install tmux configuration.
@@ -106,8 +108,19 @@ fi
 ensure_line "$HOME/.profile" "# Make Caps-Lock a second Escape."
 ensure_line "$HOME/.profile" 'if command -v setxkbmap >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then setxkbmap -option caps:escape; fi'
 
-# Install recent NeoVim (AppImage) - atomic install + basic sanity checks
+# Install Neovim 0.12+ (AppImage) - atomic install + basic sanity checks.
+install_nvim=false
 if ! command -v nvim >/dev/null 2>&1 || ! nvim --version >/dev/null 2>&1; then
+  install_nvim=true
+else
+  nvim_version="$(nvim --version | sed -n 's/^NVIM v//p' | head -n 1)"
+  if [ -z "$nvim_version" ] ||
+     dpkg --compare-versions "$nvim_version" lt "0.12.0"; then
+    install_nvim=true
+  fi
+fi
+
+if [ "$install_nvim" = true ]; then
   tmp="$(mktemp)"
   url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"
 
@@ -125,6 +138,49 @@ if ! command -v nvim >/dev/null 2>&1 || ! nvim --version >/dev/null 2>&1; then
   # Smoke test.
   /usr/local/bin/nvim --version >/dev/null
 fi
+
+# Install the Tree-sitter CLI required by nvim-treesitter's main branch.
+install_tree_sitter_cli() {
+  local required_version="0.26.1"
+  local version="0.26.8"
+  local installed_version=""
+  local arch url tmp_dir
+
+  if command -v tree-sitter >/dev/null 2>&1; then
+    installed_version="$(tree-sitter --version 2>/dev/null | awk '{ print $2; exit }')"
+    if [ -n "$installed_version" ] &&
+       dpkg --compare-versions "$installed_version" ge "$required_version"; then
+      info "Tree-sitter CLI already installed: $installed_version"
+      return 0
+    fi
+  fi
+
+  case "$(uname -m)" in
+    x86_64) arch="x64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    armv7l) arch="arm" ;;
+    *)
+      echo "Unsupported architecture for Tree-sitter CLI: $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+
+  url="https://github.com/tree-sitter/tree-sitter/releases/download/v${version}/tree-sitter-cli-linux-${arch}.zip"
+  tmp_dir="$(mktemp -d)"
+
+  wget --https-only --tries=5 --timeout=20 --waitretry=2 \
+       -O "$tmp_dir/tree-sitter.zip" "$url"
+  unzip -q "$tmp_dir/tree-sitter.zip" -d "$tmp_dir"
+  test -s "$tmp_dir/tree-sitter"
+
+  sudo install -m 0755 "$tmp_dir/tree-sitter" /usr/local/bin/tree-sitter
+  rm -rf "$tmp_dir"
+
+  /usr/local/bin/tree-sitter --version >/dev/null
+  ok "Installed Tree-sitter CLI: $(tree-sitter --version)"
+}
+
+install_tree_sitter_cli
 
 # Install NVIM configuration.
 if [ ! -d ~/.config/nvim ]; then
