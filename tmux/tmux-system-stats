@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+
+# Print compact CPU and network rates for the tmux status bar. Linux exposes
+# cumulative counters, so retain one previous sample in a private runtime dir.
+set -u
+
+proc_root="${TMUX_SYSTEM_STATS_PROC_ROOT:-/proc}"
+sys_net_root="${TMUX_SYSTEM_STATS_SYS_NET_ROOT:-/sys/class/net}"
+runtime_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
+state_dir="${runtime_root%/}/tmux-system-stats-${UID}"
+
+printf -v unavailable_output '%4s CPU │ %5s↓ %5s↑' '--%' '--' '--'
+
+is_uint() {
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+prepare_state_dir() {
+  umask 077
+
+  # Do not follow a predictable symlink when falling back to /tmp.
+  if [[ -L "$state_dir" ]]; then
+    return 1
+  fi
+  if [[ ! -d "$state_dir" ]]; then
+    mkdir -m 0700 -- "$state_dir" 2>/dev/null || return 1
+  fi
+  [[ -d "$state_dir" && -O "$state_dir" ]] || return 1
+  chmod 0700 -- "$state_dir" 2>/dev/null || return 1
+}
+
+default_route_interface() {
+  local route_file="$proc_root/net/route"
+  [[ -r "$route_file" ]] || return 1
+
+  # Prefer the lowest-metric IPv4 default route.
+  awk '
+    NR > 1 && $2 == "00000000" {
+      if (!found || $7 + 0 < metric) {
+        interface = $1
+        metric = $7 + 0
+        found = 1
+      }
+    }
+    END { if (found) print interface }
+  ' "$route_file"
+}
+
+first_active_interface() {
+  local interface_path interface state
+
+  for interface_path in "$sys_net_root"/*; do
+    [[ -d "$interface_path" ]] || continue
+    interface="${interface_path##*/}"
+    [[ "$interface" != lo ]] || continue
+    [[ -r "$interface_path/operstate" ]] || continue
+    read -r state < "$interface_path/operstate" || continue
+    if [[ "$state" == up || "$state" == unknown ]]; then
+      printf '%s\n' "$interface"
+      return 0
+    fi
+  done
+  return 1
+}
+
+select_interface() {
+  local requested="${1:-}" interface=''
+
+  if [[ -n "$requested" ]]; then
+    [[ "$requested" =~ ^[[:alnum:]_.:@-]+$ ]] || return 1
+    interface="$requested"
+  else
+    interface="$(default_route_interface 2>/dev/null || true)"
+    if [[ -z "$interface" ]]; then
+      interface="$(first_active_interface 2>/dev/null || true)"
+    fi
+  fi
+
+  [[ -n "$interface" ]] || return 1
+  [[ -r "$sys_net_root/$interface/statistics/rx_bytes" ]] || return 1
+  [[ -r "$sys_net_root/$interface/statistics/tx_bytes" ]] || return 1
+  printf '%s\n' "$interface"
+}
+
+format_rate() {
+  local bytes_per_second="$1"
+
+  awk -v rate="$bytes_per_second" 'BEGIN {
+    divisor = 1
+    unit = "B"
+    if (rate >= 1125899906842624) { divisor = 1125899906842624; unit = "P" }
+    else if (rate >= 1099511627776) { divisor = 1099511627776; unit = "T" }
+    else if (rate >= 1073741824) { divisor = 1073741824; unit = "G" }
+    else if (rate >= 1048576) { divisor = 1048576; unit = "M" }
+    else if (rate >= 1024) { divisor = 1024; unit = "K" }
+
+    value = rate / divisor
+    if (unit == "B" || value >= 100) printf "%4.0f%s", value, unit
+    else printf "%4.1f%s", value, unit
+  }'
+}
+
+write_atomically() {
+  local destination="$1" value="$2" temporary
+
+  temporary="$(mktemp "$state_dir/.tmp.XXXXXX")" || return 1
+  if ! printf '%s\n' "$value" > "$temporary"; then
+    return 1
+  fi
+  mv -f -- "$temporary" "$destination"
+}
+
+main() {
+  local interface="${1:-}" now_ms='' uptime='' cpu_label=''
+  local user='' nice='' system='' idle='' iowait='' irq='' softirq='' steal=''
+  local cpu_total cpu_idle rx_bytes=0 tx_bytes=0
+  local previous_ms previous_total previous_idle previous_interface
+  local previous_rx previous_tx elapsed total_delta idle_delta busy_delta
+  local rx_delta tx_delta rx_rate tx_rate
+  local cpu_display='--%' rx_display='--' tx_display='--' output
+  local state_file output_file
+
+  if [[ ! -r "$proc_root/stat" || ! -r "$proc_root/uptime" ]]; then
+    printf '%s\n' "$unavailable_output"
+    return
+  fi
+
+  read -r cpu_label user nice system idle iowait irq softirq steal _ \
+    < "$proc_root/stat" || true
+  if [[ "$cpu_label" != cpu ]] ||
+     ! is_uint "$user" || ! is_uint "$nice" || ! is_uint "$system" ||
+     ! is_uint "$idle" || ! is_uint "$iowait" || ! is_uint "$irq" ||
+     ! is_uint "$softirq" || ! is_uint "$steal"; then
+    printf '%s\n' "$unavailable_output"
+    return
+  fi
+
+  read -r uptime _ < "$proc_root/uptime" || true
+  now_ms="$(awk -v value="$uptime" 'BEGIN {
+    if (value !~ /^[0-9]+([.][0-9]+)?$/) exit 1
+    printf "%.0f", value * 1000
+  }')" || {
+    printf '%s\n' "$unavailable_output"
+    return
+  }
+
+  cpu_total=$((10#$user + 10#$nice + 10#$system + 10#$idle +
+               10#$iowait + 10#$irq + 10#$softirq + 10#$steal))
+  cpu_idle=$((10#$idle + 10#$iowait))
+
+  interface="$(select_interface "$interface" 2>/dev/null || true)"
+  if [[ -n "$interface" ]]; then
+    read -r rx_bytes < "$sys_net_root/$interface/statistics/rx_bytes" || rx_bytes=0
+    read -r tx_bytes < "$sys_net_root/$interface/statistics/tx_bytes" || tx_bytes=0
+    if ! is_uint "$rx_bytes" || ! is_uint "$tx_bytes"; then
+      interface=''
+      rx_bytes=0
+      tx_bytes=0
+    fi
+  else
+    rx_display='n/a'
+    tx_display='n/a'
+  fi
+
+  prepare_state_dir || {
+    printf '%s\n' "$unavailable_output"
+    return
+  }
+  state_file="$state_dir/state"
+  output_file="$state_dir/output"
+
+  # A tmux server with multiple clients can render concurrently. Reuse the
+  # last complete output if another renderer currently owns the state lock.
+  exec 9> "$state_dir/lock"
+  if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
+    if [[ -r "$output_file" ]]; then
+      head -n 1 "$output_file"
+    else
+      printf '%s\n' "$unavailable_output"
+    fi
+    return
+  fi
+
+  if [[ -r "$state_file" ]] &&
+     read -r previous_ms previous_total previous_idle previous_interface \
+       previous_rx previous_tx < "$state_file" &&
+     is_uint "$previous_ms" && is_uint "$previous_total" &&
+     is_uint "$previous_idle" && is_uint "$previous_rx" &&
+     is_uint "$previous_tx"; then
+    total_delta=$((cpu_total - 10#$previous_total))
+    idle_delta=$((cpu_idle - 10#$previous_idle))
+    if ((total_delta > 0 && idle_delta >= 0 && total_delta >= idle_delta)); then
+      busy_delta=$((total_delta - idle_delta))
+      cpu_display="$(((busy_delta * 100 + total_delta / 2) / total_delta))%"
+    fi
+
+    elapsed=$((now_ms - 10#$previous_ms))
+    if [[ -n "$interface" && "$interface" == "$previous_interface" ]] &&
+       ((elapsed > 0 && rx_bytes >= previous_rx && tx_bytes >= previous_tx)); then
+      rx_delta=$((rx_bytes - 10#$previous_rx))
+      tx_delta=$((tx_bytes - 10#$previous_tx))
+      rx_rate=$(((rx_delta * 1000 + elapsed / 2) / elapsed))
+      tx_rate=$(((tx_delta * 1000 + elapsed / 2) / elapsed))
+      rx_display="$(format_rate "$rx_rate")"
+      tx_display="$(format_rate "$tx_rate")"
+    fi
+  fi
+
+  previous_interface="${interface:--}"
+  printf -v output '%4s CPU │ %5s↓ %5s↑' \
+    "$cpu_display" "$rx_display" "$tx_display"
+  write_atomically "$state_file" \
+    "$now_ms $cpu_total $cpu_idle $previous_interface $rx_bytes $tx_bytes" || true
+  write_atomically "$output_file" "$output" || true
+  printf '%s\n' "$output"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "${1:-}"
+fi

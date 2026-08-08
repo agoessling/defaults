@@ -11,13 +11,14 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 
 install_if_changed() {
-  local src="$1" dst="$2"
+  local src="$1" dst="$2" mode="${3:-0644}"
   mkdir -p "$(dirname "$dst")"
 
-  if [ -e "$dst" ] && cmp -s "$src" "$dst"; then
+  if [ -e "$dst" ] && cmp -s "$src" "$dst" &&
+     [ "$(stat -c '%a' "$dst")" = "${mode#0}" ]; then
     info "Up to date: $dst"
   else
-    install -m 0644 "$src" "$dst"
+    install -m "$mode" "$src" "$dst"
     ok "Updated: $dst"
   fi
 }
@@ -88,6 +89,7 @@ sudo apt-get -y install --no-install-recommends \
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux
 install_if_changed "tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
+install_if_changed "tmux/tmux-system-stats" "$HOME/.tmux/tmux-system-stats" 0755
 ensure_line "$HOME/.tmux.conf" "source-file ~/.tmux.defaults.conf"
 if [ ! -d ~/.tmux/plugins/tpm ]; then
   git clone --depth=1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
