@@ -10,11 +10,29 @@ sys_net_root="${TMUX_SYSTEM_STATS_SYS_NET_ROOT:-/sys/class/net}"
 runtime_root="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}"
 state_dir="${runtime_root%/}/tmux-system-stats-${UID}"
 
-printf -v unavailable_output '%4s CPU │ %4s MEM │ %5s↓ %5s↑' \
-  '--%' '--%' '--' '--'
-
 is_uint() {
   [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+print_output() {
+  local output_format="$1" cpu_display="$2" memory_display="$3"
+  local rx_display="$4" tx_display="$5"
+
+  case "$output_format" in
+    full)
+      printf '%4s CPU │ %4s MEM │ %5s↓ %5s↑\n' \
+        "$cpu_display" "$memory_display" "$rx_display" "$tx_display"
+      ;;
+    cpu)
+      printf 'CPU %4s\n' "$cpu_display"
+      ;;
+    memory)
+      printf 'MEM %4s\n' "$memory_display"
+      ;;
+    network)
+      printf '%5s↓ %5s↑\n' "$rx_display" "$tx_display"
+      ;;
+  esac
 }
 
 prepare_state_dir() {
@@ -137,7 +155,8 @@ write_atomically() {
 }
 
 main() {
-  local interface="${1:-}" now_ms='' uptime='' cpu_label=''
+  local interface="${1:-}" output_format="${2:-full}"
+  local now_ms='' uptime='' cpu_label=''
   local user='' nice='' system='' idle='' iowait='' irq='' softirq='' steal=''
   local cpu_total cpu_idle rx_bytes=0 tx_bytes=0
   local previous_ms previous_total previous_idle previous_interface
@@ -147,7 +166,8 @@ main() {
   local state_file output_file
 
   if [[ ! -r "$proc_root/stat" || ! -r "$proc_root/uptime" ]]; then
-    printf '%s\n' "$unavailable_output"
+    print_output "$output_format" "$cpu_display" "$memory_display" \
+      "$rx_display" "$tx_display"
     return
   fi
 
@@ -157,7 +177,8 @@ main() {
      ! is_uint "$user" || ! is_uint "$nice" || ! is_uint "$system" ||
      ! is_uint "$idle" || ! is_uint "$iowait" || ! is_uint "$irq" ||
      ! is_uint "$softirq" || ! is_uint "$steal"; then
-    printf '%s\n' "$unavailable_output"
+    print_output "$output_format" "$cpu_display" "$memory_display" \
+      "$rx_display" "$tx_display"
     return
   fi
 
@@ -166,7 +187,8 @@ main() {
     if (value !~ /^[0-9]+([.][0-9]+)?$/) exit 1
     printf "%.0f", value * 1000
   }')" || {
-    printf '%s\n' "$unavailable_output"
+    print_output "$output_format" "$cpu_display" "$memory_display" \
+      "$rx_display" "$tx_display"
     return
   }
 
@@ -191,20 +213,25 @@ main() {
   fi
 
   prepare_state_dir || {
-    printf '%s\n' "$unavailable_output"
+    print_output "$output_format" "$cpu_display" "$memory_display" \
+      "$rx_display" "$tx_display"
     return
   }
   state_file="$state_dir/state"
-  output_file="$state_dir/output"
+  output_file="$state_dir/sample"
 
   # A tmux server with multiple clients can render concurrently. Reuse the
   # last complete output if another renderer currently owns the state lock.
   exec 9> "$state_dir/lock"
   if command -v flock >/dev/null 2>&1 && ! flock -n 9; then
     if [[ -r "$output_file" ]]; then
-      head -n 1 "$output_file"
+      read -r cpu_display memory_display rx_display tx_display \
+        < "$output_file" || true
+      print_output "$output_format" "$cpu_display" "$memory_display" \
+        "$rx_display" "$tx_display"
     else
-      printf '%s\n' "$unavailable_output"
+      print_output "$output_format" "$cpu_display" "$memory_display" \
+        "$rx_display" "$tx_display"
     fi
     return
   fi
@@ -235,14 +262,27 @@ main() {
   fi
 
   previous_interface="${interface:--}"
-  printf -v output '%4s CPU │ %4s MEM │ %5s↓ %5s↑' \
-    "$cpu_display" "$memory_display" "$rx_display" "$tx_display"
   write_atomically "$state_file" \
     "$now_ms $cpu_total $cpu_idle $previous_interface $rx_bytes $tx_bytes" || true
+  output="$cpu_display $memory_display $rx_display $tx_display"
   write_atomically "$output_file" "$output" || true
-  printf '%s\n' "$output"
+  print_output "$output_format" "$cpu_display" "$memory_display" \
+    "$rx_display" "$tx_display"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  main "${1:-}"
+  output_format=full
+  if [[ "${1:-}" == --format ]]; then
+    output_format="${2:-}"
+    shift 2 || true
+  fi
+  case "$output_format" in
+    full|cpu|memory|network) ;;
+    *)
+      printf 'Usage: %s [--format full|cpu|memory|network] [interface]\n' \
+        "${0##*/}" >&2
+      exit 2
+      ;;
+  esac
+  main "${1:-}" "$output_format"
 fi

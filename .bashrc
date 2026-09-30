@@ -1,5 +1,11 @@
 # Custom bashrc additions
 
+# User-installed tools must be visible before tmux starts.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
 # Set default editor
 if command -v nvim >/dev/null 2>&1; then
   export VISUAL=nvim

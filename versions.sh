@@ -1,0 +1,7 @@
+# Recorded development tools; apt-managed desktop packages follow Ubuntu updates.
+NVIM_VERSION=0.12.4
+TREE_SITTER_VERSION=0.26.8
+BAZELISK_VERSION=1.29.0
+CODEX_VERSION=0.159.2
+NERD_FONTS_VERSION=3.4.0
+NVIM_CONFIG_REVISION=ded820ec2a096b38d652a94de3b5b1f3541310f7

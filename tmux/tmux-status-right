@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+
+# Keep the window list visible by using only the status-line space left after
+# the session name and every window. Show the full status when it fits, a
+# rotating compact item when space is tighter, or nothing when windows need it.
+set -u
+
+client_width="${1:-}"
+left_width="${2:-}"
+left_limit="${3:-}"
+right_limit="${4:-}"
+separator_width="${5:-}"
+window_widths="${6:-}"
+host="${7:-}"
+host_width="${8:-}"
+interface="${9:-}"
+script_path="${BASH_SOURCE[0]}"
+if [[ "$script_path" == */* ]]; then
+  script_dir="${script_path%/*}"
+else
+  script_dir=.
+fi
+stats_command="$script_dir/tmux-system-stats"
+compact_interval=5
+
+is_uint() {
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+main() {
+  local window_width
+  local window_count=0 windows_width=0 available full_width
+  local now epoch cycle
+  local candidate_count=0 selected selected_kind
+  local stats
+  local -a widths=() candidate_kinds=() candidate_values=()
+
+  is_uint "$client_width" || return
+  is_uint "$left_width" || return
+  is_uint "$left_limit" || return
+  is_uint "$right_limit" || return
+  is_uint "$separator_width" || return
+  is_uint "$host_width" || return
+  [[ "$window_widths" =~ ^([0-9]+:)+$ ]] || return
+  [[ -x "$stats_command" ]] || return
+
+  IFS=: read -r -a widths <<< "$window_widths"
+  for window_width in "${widths[@]}"; do
+    is_uint "$window_width" || return
+    windows_width=$((windows_width + window_width))
+    window_count=$((window_count + 1))
+  done
+  ((window_count > 0)) || return
+  windows_width=$((windows_width + separator_width * (window_count - 1)))
+
+  ((left_width > left_limit)) && left_width=$left_limit
+  available=$((client_width - left_width - windows_width))
+  ((available > right_limit)) && available=$right_limit
+  ((available > 0)) || return 0
+
+  printf -v now '%(%Y-%m-%d %H:%M:%S)T' -1
+  printf -v epoch '%(%s)T' -1
+
+  # The full system-stats field is always 35 columns wide.
+  full_width=$((60 + host_width))
+  if ((full_width <= available)); then
+    stats="$($stats_command "$interface")"
+    printf ' %s │ %s %s ' "$stats" "$now" "$host"
+    return
+  fi
+
+  # Add only compact values that fit. This lets very narrow clients rotate
+  # CPU and memory while somewhat wider ones also gain network, time, and host.
+  if ((10 <= available)); then
+    candidate_kinds+=(cpu memory)
+    candidate_values+=('' '')
+  fi
+  if ((15 <= available)); then
+    candidate_kinds+=(network)
+    candidate_values+=('')
+  fi
+
+  selected="${now:5:11}"
+  if ((${#selected} + 2 <= available)); then
+    candidate_kinds+=(text)
+    candidate_values+=("$selected")
+  fi
+  if [[ -n "$host" ]] && ((host_width + 2 <= available)); then
+    candidate_kinds+=(text)
+    candidate_values+=("$host")
+  fi
+
+  candidate_count=${#candidate_kinds[@]}
+  ((candidate_count > 0)) || return 0
+  epoch="${TMUX_STATUS_NOW:-$epoch}"
+  is_uint "$epoch" || epoch=0
+  cycle=$(((10#$epoch / compact_interval) % candidate_count))
+  selected_kind="${candidate_kinds[$cycle]}"
+  selected="${candidate_values[$cycle]}"
+
+  if [[ "$selected_kind" == text ]]; then
+    # Keep the counter sample current even when this cycle displays text.
+    "$stats_command" "$interface" >/dev/null
+  else
+    selected="$($stats_command --format "$selected_kind" "$interface")"
+  fi
+  printf ' %s ' "$selected"
+}
+
+main

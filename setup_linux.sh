@@ -58,7 +58,17 @@ ensure_git_defaults_include() {
   fi
 }
 
+if ((EUID == 0)); then
+  echo "Run setup_linux.sh as the desktop user; it uses sudo when needed." >&2
+  exit 2
+fi
+if [[ "$(uname -m)" != x86_64 ]]; then
+  echo "This desktop setup currently supports x86_64 Linux only." >&2
+  exit 2
+fi
+source "$script_dir/versions.sh"
 source "$script_dir/terminal_config.sh"
+export PATH="$HOME/.local/bin:$PATH"
 
 # install apt packages.
 sudo apt-get update
@@ -77,26 +87,38 @@ sudo apt-get -y install --no-install-recommends \
     python3-venv \
     ripgrep \
     xclip \
+    x11-xkb-utils \
     fzf \
     fd-find \
     bat \
     fuse3 \
     libfuse2 \
     unzip \
-    wget
+    wget \
+    fontconfig
 
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux
 install_if_changed "tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
 install_if_changed "tmux/tmux-system-stats" "$HOME/.tmux/tmux-system-stats" 0755
+install_if_changed "tmux/tmux-status-right" "$HOME/.tmux/tmux-status-right" 0755
 ensure_line "$HOME/.tmux.conf" "source-file ~/.tmux.defaults.conf"
-if [ ! -d ~/.tmux/plugins/tpm ]; then
-  git clone --depth=1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-fi
-if [ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]; then
-  "$HOME/.tmux/plugins/tpm/bin/install_plugins"
-fi
+# Install plugins directly so bootstrap does not depend on a running tmux server.
+while read -r plugin revision; do
+  plugin_dir="$HOME/.tmux/plugins/${plugin##*/}"
+  if [[ ! -e "$plugin_dir" ]]; then
+    git clone "https://github.com/$plugin.git" "$plugin_dir"
+  fi
+  if [[ -n "$(git -C "$plugin_dir" status --porcelain)" ]]; then
+    echo "Local tmux plugin changes must be committed first: $plugin_dir" >&2
+    exit 1
+  fi
+  if [[ "$(git -C "$plugin_dir" rev-parse HEAD)" != "$revision" ]]; then
+    git -C "$plugin_dir" fetch origin "$revision"
+    git -C "$plugin_dir" checkout --detach "$revision"
+  fi
+done < "$script_dir/tmux/plugins.lock"
 
 # Install Chrome.
 if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
@@ -110,48 +132,29 @@ fi
 ensure_line "$HOME/.profile" "# Make Caps-Lock a second Escape."
 ensure_line "$HOME/.profile" 'if command -v setxkbmap >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then setxkbmap -option caps:escape; fi'
 
-# Install Neovim 0.12+ (AppImage) - atomic install + basic sanity checks.
-install_nvim=false
-if ! command -v nvim >/dev/null 2>&1 || ! nvim --version >/dev/null 2>&1; then
-  install_nvim=true
-else
-  nvim_version="$(nvim --version | sed -n 's/^NVIM v//p' | head -n 1)"
-  if [ -z "$nvim_version" ] ||
-     dpkg --compare-versions "$nvim_version" lt "0.12.0"; then
-    install_nvim=true
-  fi
-fi
-
-if [ "$install_nvim" = true ]; then
+# Install the recorded Neovim release rather than a moving latest release.
+nvim_version="$(nvim --version 2>/dev/null | sed -n 's/^NVIM v//p' | head -n 1 || true)"
+if [[ "$nvim_version" != "$NVIM_VERSION" ]]; then
   tmp="$(mktemp)"
-  url="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.appimage"
-
-  # Download to temp first; fail if HTTP error; retry transient issues
-  wget --https-only --tries=5 --timeout=20 --waitretry=2 \
-       -O "$tmp" "$url"
-
-  # Ensure non-empty file.
+  url="https://github.com/neovim/neovim/releases/download/v${NVIM_VERSION}/nvim-linux-x86_64.appimage"
+  wget --https-only --tries=5 --timeout=20 --waitretry=2 -O "$tmp" "$url"
   test -s "$tmp"
-
-  # Install atomically with proper permissions.
+  chmod 0755 "$tmp"
+  "$tmp" --version >/dev/null
   sudo install -m 0755 "$tmp" /usr/local/bin/nvim
   rm -f "$tmp"
-
-  # Smoke test.
-  /usr/local/bin/nvim --version >/dev/null
 fi
 
 # Install the Tree-sitter CLI required by nvim-treesitter's main branch.
 install_tree_sitter_cli() {
-  local required_version="0.26.1"
-  local version="0.26.8"
+  local version="$TREE_SITTER_VERSION"
   local installed_version=""
   local arch url tmp_dir
 
   if command -v tree-sitter >/dev/null 2>&1; then
     installed_version="$(tree-sitter --version 2>/dev/null | awk '{ print $2; exit }')"
     if [ -n "$installed_version" ] &&
-       dpkg --compare-versions "$installed_version" ge "$required_version"; then
+       [[ "$installed_version" == "$version" ]]; then
       info "Tree-sitter CLI already installed: $installed_version"
       return 0
     fi
@@ -184,46 +187,36 @@ install_tree_sitter_cli() {
 
 install_tree_sitter_cli
 
-# Install NVIM configuration.
-if [ ! -d ~/.config/nvim ]; then
-  git clone https://github.com/agoessling/nvim_config.git ~/.config/nvim
-elif [ -n "$(git -C ~/.config/nvim status --porcelain)" ]; then
-  info "Skipping Neovim config update: ~/.config/nvim has local changes"
-else
-  git -C ~/.config/nvim pull --ff-only
+# Restore the recorded config without overwriting local editor changes.
+nvim_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
+mkdir -p "$(dirname "$nvim_config_dir")"
+if [[ ! -e "$nvim_config_dir" ]]; then
+  git clone https://github.com/agoessling/nvim_config.git "$nvim_config_dir"
 fi
+if [[ "$(git -C "$nvim_config_dir" rev-parse --show-toplevel)" != "$(realpath "$nvim_config_dir")" ]]; then
+  echo "Neovim config must be its own Git checkout: $nvim_config_dir" >&2
+  exit 1
+fi
+if [[ -n "$(git -C "$nvim_config_dir" status --porcelain)" ]]; then
+  echo "Neovim config has local changes; commit them before provisioning." >&2
+  exit 1
+fi
+if [[ "$(git -C "$nvim_config_dir" rev-parse HEAD)" != "$NVIM_CONFIG_REVISION" ]]; then
+  git -C "$nvim_config_dir" fetch origin "$NVIM_CONFIG_REVISION"
+  git -C "$nvim_config_dir" checkout --detach "$NVIM_CONFIG_REVISION"
+fi
+"$nvim_config_dir/setup.sh"
 
-# Install Vscode.
-install_vscode() {
-  if command -v code >/dev/null 2>&1; then
-    echo "VS Code already installed: $(code --version | head -n 1)"
-    return 0
-  fi
-
-  sudo apt-get update
-  sudo apt-get install -y wget gpg apt-transport-https
-
-  # Microsoft signing key
-  wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
-    | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/packages.microsoft.gpg >/dev/null
-
-  # VS Code apt repo
-  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
-    | sudo tee /etc/apt/sources.list.d/vscode.list >/dev/null
-
-  sudo apt-get update
-  sudo apt-get install -y code
-
-  echo "Installed VS Code: $(code --version | head -n 1)"
-}
-
-install_vscode
+# Preserve an existing Codex installation; bootstrap the CLI for a fresh user.
+if ! command -v codex >/dev/null 2>&1; then
+  npm install --global --prefix "$HOME/.local" "@openai/codex@$CODEX_VERSION"
+fi
 
 # Install Bazelisk and provide bazel shim.
 install_bazelisk() {
-  if command -v bazelisk >/dev/null 2>&1; then
-    echo "Bazelisk already installed: $(bazelisk version | head -n 1)"
+  if command -v bazelisk >/dev/null 2>&1 &&
+     [[ "$(bazelisk version 2>/dev/null | sed -n '1p')" == "Bazelisk version: v$BAZELISK_VERSION" ]]; then
+    echo "Bazelisk already installed: $(bazelisk version | sed -n '1p')"
     if ! command -v bazel >/dev/null 2>&1; then
       sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
     fi
@@ -240,7 +233,7 @@ install_bazelisk() {
       ;;
   esac
 
-  url="https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-${arch}"
+  url="https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-${arch}"
   tmp="$(mktemp)"
 
   wget --https-only --tries=5 --timeout=20 --waitretry=2 \
@@ -253,17 +246,25 @@ install_bazelisk() {
   sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
 
   /usr/local/bin/bazelisk version >/dev/null
-  echo "Installed Bazelisk: $(bazelisk version | head -n 1)"
+  echo "Installed Bazelisk: $(bazelisk version | sed -n '1p')"
 }
 
 install_bazelisk
 
-# Download patched fonts.
-mkdir -p ~/.local/share/fonts
-wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Regular/HackNerdFont-Regular.ttf
-wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Bold/HackNerdFont-Bold.ttf
-wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/Italic/HackNerdFont-Italic.ttf
-wget -nc -q --show-progress -P ~/.local/share/fonts https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/Hack/BoldItalic/HackNerdFont-BoldItalic.ttf
+# Download patched fonts; skipping existing files is successful on reruns.
+mkdir -p "$HOME/.local/share/fonts"
+for style in Regular Bold Italic BoldItalic; do
+  font="HackNerdFont-${style}.ttf"
+  if [[ ! -f "$HOME/.local/share/fonts/$font" ]]; then
+    tmp="$(mktemp)"
+    wget --https-only --tries=5 --timeout=20 -O "$tmp" \
+      "https://github.com/ryanoasis/nerd-fonts/raw/v${NERD_FONTS_VERSION}/patched-fonts/Hack/$style/$font"
+    install_if_changed "$tmp" "$HOME/.local/share/fonts/$font"
+    rm -f "$tmp"
+  fi
+done
+
+fc-cache -f "$HOME/.local/share/fonts"
 
 if ! gnome_terminal_available &&
    [ -f /usr/share/glib-2.0/schemas/org.gnome.Terminal.gschema.xml ] &&

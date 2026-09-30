@@ -1,0 +1,4 @@
+tmux-plugins/tpm e261deb1b47614eed3400089ce7197dc68acc4eb
+tmux-plugins/tmux-sensible 25cb91f42d020f675bb0a2ce3fbd3a5d96119efa
+tmux-plugins/tmux-pain-control 32b760f6652f2305dfef0acd444afc311cf5c077
+christoomey/vim-tmux-navigator e41c431a0c7b7388ae7ba341f01a0d217eb3a432
