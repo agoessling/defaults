@@ -45,13 +45,15 @@ language-server/formatter versions, including TypeScript, Biome, Prettier,
 and StyLua. Dirty configuration/plugin checkouts stop setup rather than being
 overwritten; clean checkouts move to the recorded commits when needed.
 
-Apt packages and Chrome follow their distribution repositories;
-this reproduces configuration and pinned developer tools, not a disk image or
-an exact historical package snapshot. Existing Codex installations are kept;
-a fresh account gets the pinned CLI through the [official npm installation
-method](https://learn.chatgpt.com/docs/codex/cli). Sign in separately after
-installation; this does not restore the original standalone app distribution.
-The managed Bash configuration adds `~/.local/bin` before starting tmux.
+Apt packages and Chrome follow their distribution repositories; this
+reproduces configuration and pinned developer tools, not a disk image or an
+exact historical package snapshot. Existing Codex installations are kept, as
+is a `bazel` that something else installed (such as a work repository's own
+Bazelisk); a fresh account gets the pinned CLI through the [official npm
+installation method](https://learn.chatgpt.com/docs/codex/cli). Sign in
+separately after installation; this does not restore the original standalone
+app distribution. The managed Bash configuration adds `~/.local/bin` before
+starting tmux.
 
 When run from a terminal, setup asks whether to install and configure the
 Cinnamon desktop (with Blueman for Bluetooth); set `DEFAULTS_CINNAMON=yes` or
