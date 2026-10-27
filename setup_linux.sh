@@ -269,6 +269,16 @@ fi
 
 # Install Bazelisk and provide bazel shim.
 install_bazelisk() {
+  # Another provisioner (such as a work repository's) may own `bazel`,
+  # typically its own Bazelisk build; leave it in place.
+  local existing
+  existing="$(command -v bazel || true)"
+  if [[ -n "$existing" &&
+        "$(readlink -f "$existing")" != /usr/local/bin/bazelisk ]]; then
+    info "Keeping existing bazel: $existing -> $(readlink -f "$existing")"
+    return 0
+  fi
+
   if command -v bazelisk >/dev/null 2>&1 &&
      [[ "$(bazelisk version 2>/dev/null | sed -n '1p')" == "Bazelisk version: v$BAZELISK_VERSION" ]]; then
     echo "Bazelisk already installed: $(bazelisk version | sed -n '1p')"

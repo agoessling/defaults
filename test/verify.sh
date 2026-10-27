@@ -12,6 +12,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 failures=0
 pass() { printf '\033[1;32mPASS\033[0m %s\n' "$1"; }
+skip() { printf '\033[1;33mSKIP\033[0m %s\n' "$1"; }
 fail() { printf '\033[1;31mFAIL\033[0m %s\n' "$1"; failures=$((failures + 1)); }
 
 # check DESCRIPTION COMMAND... passes when COMMAND succeeds.
@@ -44,8 +45,13 @@ if [[ -n "${NODE_VERSION:-}" ]]; then
 fi
 check_eq "Tree-sitter CLI version" "$TREE_SITTER_VERSION" \
   "$(tree-sitter --version 2>/dev/null | awk '{ print $2; exit }')"
-check_eq "bazel shim points at bazelisk" "/usr/local/bin/bazelisk" \
-  "$(readlink -f /usr/local/bin/bazel 2>/dev/null)"
+bazel_target="$(readlink -f "$(command -v bazel)" 2>/dev/null)"
+if [[ -n "$bazel_target" && "$bazel_target" != /usr/local/bin/bazelisk ]]; then
+  skip "bazel is provided elsewhere: $bazel_target"
+else
+  check_eq "bazel shim points at bazelisk" "/usr/local/bin/bazelisk" \
+    "$bazel_target"
+fi
 check "Codex CLI on PATH" command -v codex
 
 for style in Regular Bold Italic BoldItalic; do
