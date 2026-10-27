@@ -15,5 +15,4 @@ RUN useradd --create-home --shell /bin/bash tester && \
 
 USER tester
 WORKDIR /home/tester
-# Containers lack FUSE, so AppImages (Neovim) extract themselves instead.
-ENV APPIMAGE_EXTRACT_AND_RUN=1 USER=tester
+ENV USER=tester

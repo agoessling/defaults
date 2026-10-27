@@ -90,16 +90,12 @@ export PATH="$HOME/.local/bin:$PATH"
 # install apt packages.
 sudo apt-get update
 sudo apt-get -y install --no-install-recommends \
-    ca-certificates \
     build-essential \
     curl \
     git \
-    python3-pip \
     tmux \
-    dconf-cli \
     gnome-terminal \
     libglib2.0-bin \
-    uuid-runtime \
     python3-venv \
     ripgrep \
     xclip \
@@ -107,8 +103,6 @@ sudo apt-get -y install --no-install-recommends \
     fzf \
     fd-find \
     bat \
-    fuse3 \
-    libfuse2 \
     unzip \
     wget \
     fontconfig
@@ -184,15 +178,21 @@ install_node
 
 # Install the recorded Neovim release rather than a moving latest release.
 nvim_version="$(nvim --version 2>/dev/null | sed -n 's/^NVIM v//p' | head -n 1 || true)"
+# The release tarball needs no FUSE, unlike the AppImage.
 if [[ "$nvim_version" != "$NVIM_VERSION" ]]; then
-  tmp="$(mktemp)"
-  url="https://github.com/neovim/neovim/releases/download/v${NVIM_VERSION}/nvim-linux-x86_64.appimage"
-  wget --https-only --tries=5 --timeout=20 --waitretry=2 -O "$tmp" "$url"
-  test -s "$tmp"
-  chmod 0755 "$tmp"
-  "$tmp" --version >/dev/null
-  sudo install -m 0755 "$tmp" /usr/local/bin/nvim
-  rm -f "$tmp"
+  tmp_dir="$(mktemp -d)"
+  url="https://github.com/neovim/neovim/releases/download/v${NVIM_VERSION}/nvim-linux-x86_64.tar.gz"
+  wget --https-only --tries=5 --timeout=20 --waitretry=2 \
+       -O "$tmp_dir/nvim.tar.gz" "$url"
+  tar -xzf "$tmp_dir/nvim.tar.gz" -C "$tmp_dir"
+  "$tmp_dir/nvim-linux-x86_64/bin/nvim" --version >/dev/null
+
+  sudo rm -rf /usr/local/lib/neovim
+  sudo mv "$tmp_dir/nvim-linux-x86_64" /usr/local/lib/neovim
+  sudo chown -R root:root /usr/local/lib/neovim
+  # Replaces an AppImage installed by earlier versions of this script.
+  sudo ln -sfn /usr/local/lib/neovim/bin/nvim /usr/local/bin/nvim
+  rm -rf "$tmp_dir"
 fi
 
 # Install the Tree-sitter CLI required by nvim-treesitter's main branch.
@@ -356,7 +356,7 @@ ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 # matching keys and leave any other Cinnamon customizations alone.
 if ((setup_cinnamon)); then
   # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
-  sudo apt-get -y install cinnamon-core blueman
+  sudo apt-get -y install cinnamon-core blueman dconf-cli
   if [[ ! -s cinnamon/dconf.ini ]]; then
     info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
   elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
