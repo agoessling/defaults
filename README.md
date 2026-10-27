@@ -29,7 +29,7 @@ set -g @status_net_interface "eth0"
 
 ## Recreate the workstation
 
-Start with Ubuntu 26.04 on x86_64, a normal desktop user with sudo access,
+Start with Ubuntu 24.04 on x86_64, a normal desktop user with sudo access,
 and a connected network; install Git, then run as that user:
 
 ```bash
@@ -53,6 +53,10 @@ a fresh account gets the pinned CLI through the [official npm installation
 method](https://learn.chatgpt.com/docs/codex/cli). Sign in separately after
 installation; this does not restore the original standalone app distribution.
 The managed Bash configuration adds `~/.local/bin` before starting tmux.
+
+This `ubuntu-24.04` branch tracks `master` (Ubuntu 26.04) and adds what
+24.04 needs: a pinned Node.js release, because Ubuntu 24.04's Node 18 is too
+old for the Neovim language servers.
 
 Machine-specific provisioning and project-specific hardware setup are maintained
 separately from these shared workstation defaults.

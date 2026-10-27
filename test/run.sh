@@ -12,7 +12,7 @@
 set -euo pipefail
 
 repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-release="${1:-26.04}"
+release="${1:-24.04}"
 shift || true
 image="defaults-test:$release"
 
