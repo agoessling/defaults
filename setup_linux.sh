@@ -83,7 +83,6 @@ sudo apt-get -y install --no-install-recommends \
     gnome-terminal \
     libglib2.0-bin \
     uuid-runtime \
-    npm \
     python3-venv \
     ripgrep \
     xclip \
@@ -131,6 +130,40 @@ fi
 # Swap Caps-Lock with Escape.
 ensure_line "$HOME/.profile" "# Make Caps-Lock a second Escape."
 ensure_line "$HOME/.profile" 'if command -v setxkbmap >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then setxkbmap -option caps:escape; fi'
+
+# Ubuntu 24.04 ships Node 18; Mason's language servers need Node 20 or newer.
+install_node() {
+  local version="$NODE_VERSION"
+  local install_dir="/usr/local/lib/nodejs/node-v${version}-linux-x64"
+  local url tmp_dir
+
+  if [[ "$(/usr/local/bin/node --version 2>/dev/null)" == "v$version" ]]; then
+    info "Node.js already installed: v$version"
+    return 0
+  fi
+
+  url="https://nodejs.org/dist/v${version}/node-v${version}-linux-x64.tar.xz"
+  tmp_dir="$(mktemp -d)"
+
+  wget --https-only --tries=5 --timeout=20 --waitretry=2 \
+       -O "$tmp_dir/node.tar.xz" "$url"
+  tar -xJf "$tmp_dir/node.tar.xz" -C "$tmp_dir"
+  "$tmp_dir/node-v${version}-linux-x64/bin/node" --version >/dev/null
+
+  sudo rm -rf "$install_dir"
+  sudo mkdir -p "$(dirname "$install_dir")"
+  sudo mv "$tmp_dir/node-v${version}-linux-x64" "$install_dir"
+  sudo chown -R root:root "$install_dir"
+  rm -rf "$tmp_dir"
+
+  local tool
+  for tool in node npm npx corepack; do
+    sudo ln -sfn "$install_dir/bin/$tool" "/usr/local/bin/$tool"
+  done
+  ok "Installed Node.js: $(/usr/local/bin/node --version)"
+}
+
+install_node
 
 # Install the recorded Neovim release rather than a moving latest release.
 nvim_version="$(nvim --version 2>/dev/null | sed -n 's/^NVIM v//p' | head -n 1 || true)"

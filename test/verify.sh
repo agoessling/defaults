@@ -39,6 +39,9 @@ check "Chrome installed" dpkg -s google-chrome-stable
 
 check_eq "Neovim version" "$NVIM_VERSION" \
   "$(nvim --version 2>/dev/null | sed -n 's/^NVIM v//p' | head -n 1)"
+if [[ -n "${NODE_VERSION:-}" ]]; then
+  check_eq "Node.js version" "v$NODE_VERSION" "$(/usr/local/bin/node --version 2>/dev/null)"
+fi
 check_eq "Tree-sitter CLI version" "$TREE_SITTER_VERSION" \
   "$(tree-sitter --version 2>/dev/null | awk '{ print $2; exit }')"
 check_eq "bazel shim points at bazelisk" "/usr/local/bin/bazelisk" \

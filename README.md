@@ -38,12 +38,13 @@ cd ~/defaults
 ./setup_linux.sh
 ```
 
-`versions.sh` records Neovim, Tree-sitter, Bazelisk, Codex CLI, fonts, and the
-Neovim configuration commit. `tmux/plugins.lock` records installed tmux plugin
-commits. Neovim setup restores its plugin lockfile and the recorded Mason
-language-server/formatter versions, including TypeScript, Biome, Prettier,
-and StyLua. Dirty configuration/plugin checkouts stop setup rather than being
-overwritten; clean checkouts move to the recorded commits when needed.
+`versions.sh` records Neovim, Node.js, Tree-sitter, Bazelisk, Codex CLI,
+fonts, and the Neovim configuration commit. `tmux/plugins.lock` records
+installed tmux plugin commits. Neovim setup restores its plugin lockfile and
+the recorded Mason language-server/formatter versions, including TypeScript,
+Biome, Prettier, and StyLua. Dirty configuration/plugin checkouts stop setup
+rather than being overwritten; clean checkouts move to the recorded commits
+when needed.
 
 Apt packages and Chrome follow their distribution repositories;
 this reproduces configuration and pinned developer tools, not a disk image or
