@@ -54,6 +54,13 @@ method](https://learn.chatgpt.com/docs/codex/cli). Sign in separately after
 installation; this does not restore the original standalone app distribution.
 The managed Bash configuration adds `~/.local/bin` before starting tmux.
 
+When run from a terminal, setup asks whether to install and configure the
+Cinnamon desktop; set `DEFAULTS_CINNAMON=yes` or `DEFAULTS_CINNAMON=no` to
+answer in advance. Cinnamon is installed beside the existing desktop and is
+chosen at the login screen. Its recorded settings in `cinnamon/dconf.ini` are
+loaded into the user's dconf database when setup runs from a desktop session;
+settings not recorded there are left alone.
+
 This `ubuntu-24.04` branch tracks `master` (Ubuntu 26.04) and adds what
 24.04 needs: a pinned Node.js release, because Ubuntu 24.04's Node 18 is too
 old for the Neovim language servers.
