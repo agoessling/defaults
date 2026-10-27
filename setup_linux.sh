@@ -90,16 +90,12 @@ export PATH="$HOME/.local/bin:$PATH"
 # install apt packages.
 sudo apt-get update
 sudo apt-get -y install --no-install-recommends \
-    ca-certificates \
     build-essential \
     curl \
     git \
-    python3-pip \
     tmux \
-    dconf-cli \
     gnome-terminal \
     libglib2.0-bin \
-    uuid-runtime \
     npm \
     python3-venv \
     ripgrep \
@@ -323,7 +319,7 @@ ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 # matching keys and leave any other Cinnamon customizations alone.
 if ((setup_cinnamon)); then
   # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
-  sudo apt-get -y install cinnamon-core blueman
+  sudo apt-get -y install cinnamon-core blueman dconf-cli
   if [[ ! -s cinnamon/dconf.ini ]]; then
     info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
   elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
