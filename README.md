@@ -29,7 +29,7 @@ set -g @status_net_interface "eth0"
 
 ## Recreate the workstation
 
-Start with Ubuntu 24.04 on x86_64, a normal desktop user with sudo access,
+Start with Ubuntu 26.04 on x86_64, a normal desktop user with sudo access,
 and a connected network; install Git, then run as that user:
 
 ```bash
