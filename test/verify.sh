@@ -107,6 +107,13 @@ check_eq "Neovim config revision" "$NVIM_CONFIG_REVISION" \
 nvim_errors="$(nvim --headless -c 'qall' 2>&1 >/dev/null)"
 check_eq "Neovim starts without errors" "" "$nvim_errors"
 
+# Cinnamon is optional; check its recorded layout only where it is installed.
+if dpkg -s cinnamon-core >/dev/null 2>&1; then
+  check "Cinnamon settings match cinnamon/" python3 "$repo_dir/cinnamon/settings.py" check
+else
+  skip "Cinnamon not installed"
+fi
+
 echo
 if ((failures)); then
   printf '\033[1;31m%d check(s) failed\033[0m\n' "$failures"

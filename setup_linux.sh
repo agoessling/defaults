@@ -367,17 +367,17 @@ install_if_changed ".gitconfig" "$HOME/.gitconfig.defaults"
 ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 
 # Install Cinnamon as an additional session; the existing display manager
-# offers it at login. Settings captured in cinnamon/dconf.ini override the
-# matching keys and leave any other Cinnamon customizations alone.
+# offers it at login. The recorded panel layout (cinnamon/dconf.ini and
+# cinnamon/applets.json) overrides the matching settings and leaves any other
+# Cinnamon customizations alone. Panels on a second monitor stay dormant until
+# one is connected, so the layout suits single- and dual-monitor desks.
 if ((setup_cinnamon)); then
   # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
   "${apt_get[@]}" install cinnamon-core blueman dconf-cli
-  if [[ ! -s cinnamon/dconf.ini ]]; then
-    info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
-  elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+  if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
     info "Skipping Cinnamon settings: run from a desktop session to apply them"
   else
-    dconf load / < cinnamon/dconf.ini
+    python3 cinnamon/settings.py apply
     ok "Applied Cinnamon settings"
   fi
 fi

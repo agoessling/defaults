@@ -1,0 +1,16 @@
+{
+  "panel-launchers@cinnamon.org/22": {
+    "launcherList": [
+      "nemo.desktop",
+      "org.gnome.Terminal.desktop",
+      "google-chrome.desktop"
+    ]
+  },
+  "panel-launchers@cinnamon.org/23": {
+    "launcherList": [
+      "nemo.desktop",
+      "org.gnome.Terminal.desktop",
+      "google-chrome.desktop"
+    ]
+  }
+}

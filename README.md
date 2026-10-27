@@ -59,9 +59,17 @@ starting tmux.
 When run from a terminal, setup asks whether to install and configure the
 Cinnamon desktop (with Blueman for Bluetooth); set `DEFAULTS_CINNAMON=yes` or
 `DEFAULTS_CINNAMON=no` to answer in advance. Cinnamon is installed beside the
-existing desktop and is chosen at the login screen. Its recorded settings in
-`cinnamon/dconf.ini` are loaded into the user's dconf database when setup runs
-from a desktop session; settings not recorded there are left alone.
+existing desktop and is chosen at the login screen. When setup runs from a
+desktop session it applies the recorded panel layout: 30-pixel panels with the
+menu and launchers on top and a window list on the bottom, repeated on a
+second monitor. Panels for a missing second monitor stay dormant, so one
+layout serves single- and dual-monitor desks. Display scaling is left to each
+machine. Settings not recorded are left alone.
+
+To record a changed layout, copy the panel keys from `dconf dump
+/org/cinnamon/` into `cinnamon/dconf.ini` and changed applet settings from
+`~/.config/cinnamon/spices/<applet>/<id>.json` into `cinnamon/applets.json`;
+`cinnamon/settings.py check` lists what differs.
 
 This `ubuntu-24.04` branch tracks `master` (Ubuntu 26.04) and adds what
 24.04 needs: a pinned Node.js release, because Ubuntu 24.04's Node 18 is too
