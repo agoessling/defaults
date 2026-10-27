@@ -87,9 +87,14 @@ source "$script_dir/versions.sh"
 source "$script_dir/terminal_config.sh"
 export PATH="$HOME/.local/bin:$PATH"
 
+# Follow the machine's apt policy: a pin above priority 1000 (such as a
+# managed snapshot mirror) can select older versions than those installed.
+# Without such a pin apt never chooses a downgrade.
+apt_get=(sudo apt-get -y --allow-downgrades)
+
 # install apt packages.
 sudo apt-get update
-sudo apt-get -y install --no-install-recommends \
+"${apt_get[@]}" install --no-install-recommends \
     build-essential \
     curl \
     git \
@@ -134,7 +139,7 @@ done < "$script_dir/tmux/plugins.lock"
 if ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
   tmpdeb="$(mktemp --suffix=.deb)"
   wget -O "$tmpdeb" https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-  sudo dpkg -i "$tmpdeb" || sudo apt-get -y -f install
+  sudo dpkg -i "$tmpdeb" || "${apt_get[@]}" -f install
   rm -f "$tmpdeb"
 fi
 
@@ -356,7 +361,7 @@ ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 # matching keys and leave any other Cinnamon customizations alone.
 if ((setup_cinnamon)); then
   # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
-  sudo apt-get -y install cinnamon-core blueman dconf-cli
+  "${apt_get[@]}" install cinnamon-core blueman dconf-cli
   if [[ ! -s cinnamon/dconf.ini ]]; then
     info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
   elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
