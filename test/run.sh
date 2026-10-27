@@ -19,17 +19,21 @@ image="defaults-test:$release"
 docker build --quiet --build-arg "UBUNTU_RELEASE=$release" \
   -t "$image" "$repo_dir/test" >/dev/null
 
+# Copy rather than mount so setup gets a private, writable tree. Skip .git:
+# a worktree's .git file points at a host path the container lacks.
+copy_src='mkdir ~/defaults && tar -C /src --exclude=./.git -c . | tar -C ~/defaults -x'
+
 if (($#)); then
   docker_tty=()
   [[ -t 0 ]] && docker_tty=(-it)
   exec docker run --rm "${docker_tty[@]}" -v "$repo_dir:/src:ro" "$image" \
-    bash -c 'cp -a /src ~/defaults && cd ~/defaults && exec "$@"' bash "$@"
+    bash -c "$copy_src"' && cd ~/defaults && exec "$@"' bash "$@"
 fi
 
-# Copy rather than mount so setup sees a private, writable checkout.
-exec docker run --rm -v "$repo_dir:/src:ro" "$image" bash -c '
+exec docker run --rm -v "$repo_dir:/src:ro" "$image" bash -c "
   set -euo pipefail
-  cp -a /src ~/defaults
+  $copy_src
+"'
   cd ~/defaults
   echo "=== Provision"
   ./setup_linux.sh </dev/null
