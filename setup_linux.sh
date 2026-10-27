@@ -66,6 +66,23 @@ if [[ "$(uname -m)" != x86_64 ]]; then
   echo "This desktop setup currently supports x86_64 Linux only." >&2
   exit 2
 fi
+# Ask up front so an unattended run is not left waiting on a prompt.
+# DEFAULTS_CINNAMON=yes|no answers without prompting; noninteractive runs skip.
+case "${DEFAULTS_CINNAMON:-}" in
+  yes) setup_cinnamon=1 ;;
+  no) setup_cinnamon=0 ;;
+  "")
+    setup_cinnamon=0
+    if [[ -t 0 ]]; then
+      read -r -p "Install and configure the Cinnamon desktop? [y/N] " reply
+      [[ "$reply" == [Yy]* ]] && setup_cinnamon=1
+    fi
+    ;;
+  *)
+    echo "DEFAULTS_CINNAMON must be yes or no." >&2
+    exit 2
+    ;;
+esac
 source "$script_dir/versions.sh"
 source "$script_dir/terminal_config.sh"
 export PATH="$HOME/.local/bin:$PATH"
@@ -300,3 +317,18 @@ install_if_changed ".gitconfig" "$HOME/.gitconfig.defaults"
 # Git expands the literal tilde when reading the include.
 # shellcheck disable=SC2088
 ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
+
+# Install Cinnamon as an additional session; the existing display manager
+# offers it at login. Settings captured in cinnamon/dconf.ini override the
+# matching keys and leave any other Cinnamon customizations alone.
+if ((setup_cinnamon)); then
+  sudo apt-get -y install cinnamon-core
+  if [[ ! -s cinnamon/dconf.ini ]]; then
+    info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
+  elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    info "Skipping Cinnamon settings: run from a desktop session to apply them"
+  else
+    dconf load / < cinnamon/dconf.ini
+    ok "Applied Cinnamon settings"
+  fi
+fi
