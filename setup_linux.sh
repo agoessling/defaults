@@ -355,7 +355,8 @@ ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 # offers it at login. Settings captured in cinnamon/dconf.ini override the
 # matching keys and leave any other Cinnamon customizations alone.
 if ((setup_cinnamon)); then
-  sudo apt-get -y install cinnamon-core
+  # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
+  sudo apt-get -y install cinnamon-core blueman
   if [[ ! -s cinnamon/dconf.ini ]]; then
     info "No Cinnamon settings recorded yet: cinnamon/dconf.ini"
   elif [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
