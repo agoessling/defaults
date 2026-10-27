@@ -62,8 +62,9 @@ existing desktop and is chosen at the login screen. When setup runs from a
 desktop session it applies the recorded panel layout: 30-pixel panels with the
 menu and launchers on top and a window list on the bottom, repeated on a
 second monitor. Panels for a missing second monitor stay dormant, so one
-layout serves single- and dual-monitor desks. Display scaling is left to each
-machine. Settings not recorded are left alone.
+layout serves single- and dual-monitor desks. Print opens Flameshot to select
+and annotate an area, then copy it (Ctrl+C) or save it (Ctrl+S). Display
+scaling is left to each machine. Settings not recorded are left alone.
 
 To record a changed layout, copy the panel keys from `dconf dump
 /org/cinnamon/` into `cinnamon/dconf.ini` and changed applet settings from
