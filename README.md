@@ -59,3 +59,16 @@ separately from these shared workstation defaults.
 Recreate credentials, SSH keys, and application logins separately; these are not
 copied into Git. Browser profiles and editor caches are also outside this
 configuration backup.
+
+## Testing
+
+- `test/verify.sh` checks a provisioned machine against the recorded
+  configuration and versions. It is read-only and takes seconds; run it after
+  `setup_linux.sh`.
+- `test/lint.sh` syntax-checks and ShellChecks the scripts. Enable it as a
+  pre-commit hook with `git config core.hooksPath hooks`.
+- `test/run.sh [RELEASE]` provisions a fresh Ubuntu container (Docker) from
+  the working tree, then runs `test/verify.sh`. Each run downloads a full
+  workstation, so use it only when a real machine cannot answer the question:
+  fresh-install behavior or a different Ubuntu release.
+  `test/run.sh 24.04 bash` opens a shell in a fresh container instead.
