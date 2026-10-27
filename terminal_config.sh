@@ -25,7 +25,7 @@ default_profile_name() {
 get_profile_uuid() {
   local profiles
   profiles=$(gsettings get org.gnome.Terminal.ProfilesList list | tr "',[]" " ")
-  for profile in ${profiles[@]}; do
+  for profile in $profiles; do
     if [ "$(get_profile_name "$profile")" = "$1" ]; then
       echo "$profile"
     fi

@@ -297,4 +297,6 @@ ensure_line "$HOME/.bashrc" '[ -f "$HOME/.bashrc.defaults" ] && . "$HOME/.bashrc
 
 # Configure Git
 install_if_changed ".gitconfig" "$HOME/.gitconfig.defaults"
+# Git expands the literal tilde when reading the include.
+# shellcheck disable=SC2088
 ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
