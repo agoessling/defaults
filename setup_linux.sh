@@ -373,7 +373,8 @@ ensure_git_defaults_include "$HOME/.gitconfig" "~/.gitconfig.defaults"
 # one is connected, so the layout suits single- and dual-monitor desks.
 if ((setup_cinnamon)); then
   # Cinnamon has no Bluetooth applet of its own; Blueman provides the tray icon.
-  "${apt_get[@]}" install cinnamon-core blueman dconf-cli
+  # Flameshot backs the Print binding.
+  "${apt_get[@]}" install cinnamon-core blueman dconf-cli flameshot
   if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
     info "Skipping Cinnamon settings: run from a desktop session to apply them"
   else
