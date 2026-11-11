@@ -14,18 +14,19 @@ The `*.defaults` files are managed by this repo and may be replaced on rerun.
 For settings that must run before managed bash defaults, such as `NO_TMUX=1`,
 place them above the source line in `~/.bashrc`.
 
-The tmux status bar reports CPU use, memory use, download/upload rates, the
-date and time, and the host. When the whole status bar does not fit, the right
-side becomes one compact item that rotates every five seconds; if necessary it
-is hidden entirely so the window list takes precedence. The bar and its system
-statistics update every five seconds. Memory use excludes memory the kernel
-reports as available, including reclaimable cache. Network traffic follows the
-default-route interface. To select an interface explicitly, add this after the
-source line in `~/.tmux.conf`:
+The tmux status bar shows CPU, memory, network rates, date/time, and hostname
+in a fixed layout, updated every second. Memory use excludes reclaimable cache;
+network rates follow the default-route interface. To select another interface,
+add this after the source line in `~/.tmux.conf`:
 
 ```tmux
 set -g @status_net_interface "eth0"
 ```
+
+Setup compiles `tmux/tmux-status.c` locally. Tmux owns the persistent worker;
+it needs no separate service or boot setup. To rebuild it without full setup,
+run `bash tmux/build-status.sh ~/.tmux/tmux-status-right`, then detach and
+reattach clients to use the new executable.
 
 ## Recreate the workstation
 
@@ -86,6 +87,8 @@ configuration backup.
 - `test/verify.sh` checks a provisioned machine against the recorded
   configuration and versions. It is read-only and takes seconds; run it after
   `setup_linux.sh`.
+- `python3 test/status.py` checks the status worker's output, build safety, and
+  process lifetime using a private tmux server.
 - `test/lint.sh` syntax-checks and ShellChecks the scripts. Enable it as a
   pre-commit hook with `git config core.hooksPath hooks`.
 - `test/run.sh [RELEASE]` provisions a fresh Ubuntu container (Docker) from

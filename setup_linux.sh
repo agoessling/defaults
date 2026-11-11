@@ -116,9 +116,8 @@ sudo apt-get update
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux
+bash tmux/build-status.sh "$HOME/.tmux/tmux-status-right"
 install_if_changed "tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
-install_if_changed "tmux/tmux-system-stats" "$HOME/.tmux/tmux-system-stats" 0755
-install_if_changed "tmux/tmux-status-right" "$HOME/.tmux/tmux-status-right" 0755
 ensure_line "$HOME/.tmux.conf" "source-file ~/.tmux.defaults.conf"
 # Install plugins directly so bootstrap does not depend on a running tmux server.
 while read -r plugin revision; do

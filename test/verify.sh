@@ -84,11 +84,17 @@ check "tmux defaults current" \
   cmp -s "$repo_dir/tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 check "tmux.conf sources defaults" has_line "$HOME/.tmux.conf" \
   "source-file ~/.tmux.defaults.conf"
-for script in tmux-colorscheme.conf tmux-system-stats tmux-status-right; do
-  check "tmux file current: $script" \
-    cmp -s "$repo_dir/tmux/$script" "$HOME/.tmux/$script"
-done
-check "tmux status scripts run" "$HOME/.tmux/tmux-system-stats"
+check "tmux colorscheme current" \
+  cmp -s "$repo_dir/tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
+status_binary_current() (
+  temporary="$(mktemp)" || exit 1
+  trap 'rm -f -- "$temporary"' EXIT
+  bash "$repo_dir/tmux/build-status.sh" "$temporary" &&
+    cmp -s "$temporary" "$HOME/.tmux/tmux-status-right"
+)
+check "tmux status binary current" status_binary_current
+check "tmux status collector runs" "$HOME/.tmux/tmux-status-right" --once \
+  host
 tmux_prefix="$(tmux -L defaults-verify -f "$HOME/.tmux.conf" \
   new-session -d \; show-options -gv prefix \; kill-server 2>/dev/null)"
 check_eq "tmux loads configuration" "C-a" "$tmux_prefix"
