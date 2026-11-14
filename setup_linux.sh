@@ -121,6 +121,9 @@ sudo apt-get update
     wget \
     fontconfig
 
+# Install local helpers.
+install_if_changed "bin/clip-to-remote" "$HOME/.local/bin/clip-to-remote" 0755
+
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux

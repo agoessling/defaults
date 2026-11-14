@@ -82,6 +82,10 @@ check "interactive bash loads prompt helpers" \
 check "interactive bash loads aliases" \
   env NO_TMUX=1 bash -ic 'alias vim'
 
+check "clipboard helper current" \
+  cmp -s "$repo_dir/bin/clip-to-remote" "$HOME/.local/bin/clip-to-remote"
+check "clipboard helper executable" "$HOME/.local/bin/clip-to-remote" --help
+
 # tmux parses the configuration and every locked plugin is at its revision.
 check "tmux defaults current" \
   cmp -s "$repo_dir/tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
