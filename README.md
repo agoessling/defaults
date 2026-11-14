@@ -14,18 +14,19 @@ The `*.defaults` files are managed by this repo and may be replaced on rerun.
 For settings that must run before managed bash defaults, such as `NO_TMUX=1`,
 place them above the source line in `~/.bashrc`.
 
-The tmux status bar reports CPU use, memory use, download/upload rates, the
-date and time, and the host. When the whole status bar does not fit, the right
-side becomes one compact item that rotates every five seconds; if necessary it
-is hidden entirely so the window list takes precedence. The bar and its system
-statistics update every five seconds. Memory use excludes memory the kernel
-reports as available, including reclaimable cache. Network traffic follows the
-default-route interface. To select an interface explicitly, add this after the
-source line in `~/.tmux.conf`:
+The tmux status bar shows CPU, memory, network rates, date/time, and hostname
+in a fixed layout, updated every second. Memory use excludes reclaimable cache;
+network rates follow the default-route interface. To select another interface,
+add this after the source line in `~/.tmux.conf`:
 
 ```tmux
 set -g @status_net_interface "eth0"
 ```
+
+Setup compiles `tmux/tmux-status.c` locally. Tmux owns the persistent worker;
+it needs no separate service or boot setup. To rebuild it without full setup,
+run `bash tmux/build-status.sh ~/.tmux/tmux-status-right`, then detach and
+reattach clients to use the new executable.
 
 ## Recreate the workstation
 
@@ -60,15 +61,31 @@ When run from a terminal, setup asks whether to install and configure the
 Cinnamon desktop (with Blueman for Bluetooth); set `DEFAULTS_CINNAMON=yes` or
 `DEFAULTS_CINNAMON=no` to answer in advance. Cinnamon is installed beside the
 existing desktop and is chosen at the login screen. When setup runs from a
-desktop session it applies the recorded panel layout: 38-pixel panels with the
-menu and launchers on top and a window list on the bottom, repeated on a
-second monitor. Panels for a missing second monitor stay dormant, so one
-layout serves single- and dual-monitor desks. Print opens Flameshot to select
-and annotate an area, then copy it (Ctrl+C) or save it (Ctrl+S). The layout is
-sized for 27-inch 4K monitors at 100% display scale with text and the cursor
-at 125%; on X11, fractional display scaling instead renders every frame at 2x
-and has the GPU downscale it on every refresh. Settings not recorded are left
-alone.
+desktop session it applies the recorded panel layout: menu and launchers on
+top and a window list on the bottom, repeated on a second monitor. Panels for
+a missing second monitor stay dormant. Print opens Flameshot to select and
+annotate an area, then copy it (Ctrl+C) or save it (Ctrl+S). Super+Shift+S
+is an alternate Flameshot shortcut. Setup disables all six Cinnamon system
+screenshot bindings so existing assignments cannot compete with Flameshot.
+If Print is still intercepted by another application or a remote desktop, use
+the alternate shortcut; logging out and back in can clear stale key grabs.
+
+Setup also asks for a linked text and panel size (50–200%). The default is
+100%: normal text, 30-pixel panels, and a 24-pixel cursor. Panel icons and
+cursor size follow the same percentage. The choice is saved per user in
+`~/.config/defaults/cinnamon-scale` (under `XDG_CONFIG_HOME` when set) and
+reused on reruns and by verification. Set `DEFAULTS_CINNAMON_SCALE=125` to
+answer in advance. Noninteractive runs use the saved size, or 100% on a fresh
+account. Display scaling is left alone.
+
+To change only the linked size without running full setup:
+
+```bash
+python3 cinnamon/settings.py scale --scale 100
+```
+
+Settings not recorded are left alone. `cinnamon/dconf.ini` retains the original
+125% layout as the reference from which sizes are calculated.
 
 To record a changed layout, copy the panel keys from `dconf dump
 /org/cinnamon/` into `cinnamon/dconf.ini` and changed applet settings from
@@ -91,6 +108,8 @@ configuration backup.
 - `test/verify.sh` checks a provisioned machine against the recorded
   configuration and versions. It is read-only and takes seconds; run it after
   `setup_linux.sh`.
+- `python3 test/status.py` checks the status worker's output, build safety, and
+  process lifetime using a private tmux server.
 - `test/lint.sh` syntax-checks and ShellChecks the scripts. Enable it as a
   pre-commit hook with `git config core.hooksPath hooks`.
 - `test/run.sh [RELEASE]` provisions a fresh Ubuntu container (Docker) from

@@ -8,9 +8,11 @@ cd "$repo_dir"
 
 scripts=(
   setup_linux.sh versions.sh terminal_config.sh .bashrc .bash_aliases
-  tmux/tmux-status-right tmux/tmux-system-stats
+  tmux/build-status.sh
   test/*.sh hooks/*
 )
+
+cc -std=c11 -Wall -Wextra -Werror -fsyntax-only tmux/tmux-status.c
 
 for script in "${scripts[@]}"; do
   bash -n "$script"

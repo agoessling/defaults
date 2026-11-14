@@ -83,6 +83,15 @@ case "${DEFAULTS_CINNAMON:-}" in
     exit 2
     ;;
 esac
+if ((setup_cinnamon)); then
+  cinnamon_scale="${DEFAULTS_CINNAMON_SCALE:-$(python3 cinnamon/settings.py get-scale)}"
+  if [[ -t 0 && -z "${DEFAULTS_CINNAMON_SCALE:-}" ]]; then
+    read -r -p "Cinnamon text and panel size in percent (50-200) [$cinnamon_scale]: " reply
+    cinnamon_scale="${reply:-$cinnamon_scale}"
+  fi
+  # Validate before installing anything.
+  python3 cinnamon/settings.py get-scale --scale "$cinnamon_scale" >/dev/null
+fi
 source "$script_dir/versions.sh"
 source "$script_dir/terminal_config.sh"
 export PATH="$HOME/.local/bin:$PATH"
@@ -115,9 +124,8 @@ sudo apt-get update
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
 mkdir -p ~/.tmux
+bash tmux/build-status.sh "$HOME/.tmux/tmux-status-right"
 install_if_changed "tmux/tmux-colorscheme.conf" "$HOME/.tmux/tmux-colorscheme.conf"
-install_if_changed "tmux/tmux-system-stats" "$HOME/.tmux/tmux-system-stats" 0755
-install_if_changed "tmux/tmux-status-right" "$HOME/.tmux/tmux-status-right" 0755
 ensure_line "$HOME/.tmux.conf" "source-file ~/.tmux.defaults.conf"
 # Install plugins directly so bootstrap does not depend on a running tmux server.
 while read -r plugin revision; do
@@ -378,7 +386,7 @@ if ((setup_cinnamon)); then
   if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
     info "Skipping Cinnamon settings: run from a desktop session to apply them"
   else
-    python3 cinnamon/settings.py apply
+    python3 cinnamon/settings.py apply --scale "$cinnamon_scale"
     ok "Applied Cinnamon settings"
   fi
 fi
