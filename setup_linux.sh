@@ -124,6 +124,7 @@ sudo apt-get update
 
 # Install local helpers.
 install_if_changed "bin/clip-to-remote" "$HOME/.local/bin/clip-to-remote" 0755
+install_if_changed "bin/paste-primary" "$HOME/.local/bin/paste-primary" 0755
 
 # Install tmux configuration.
 install_if_changed "tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"

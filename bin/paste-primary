@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Paste local X11 text into a tmux pane without forwarding mouse events."""
+import subprocess
+import sys
+import uuid
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+
+
+def paste(pane):
+    # PRIMARY may be cleared when an app loses focus. CLIPBOARD is a fallback
+    # only when PRIMARY contains no text; a nonempty PRIMARY always wins.
+    text = b""
+    for selection in ("primary", "clipboard"):
+        result = run("xclip", "-selection", selection, "-t", "UTF8_STRING", "-o")
+        if result.returncode == 0 and result.stdout:
+            text = result.stdout
+            break
+    if not text:
+        return "No text available to paste in PRIMARY or CLIPBOARD."
+    buffer = "primary-" + uuid.uuid4().hex
+    try:
+        # Use set-buffer rather than load-buffer: this temporary paste buffer
+        # must not trigger the hook that mirrors application copies to X11.
+        # Bound each argument to stay below the OS argument size limit.
+        value = text.decode("utf-8")
+        for offset in range(0, len(value), 16384):
+            flags = ("-a",) if offset else ()
+            result = run("tmux", "set-buffer", *flags, "-b", buffer, "--", value[offset:offset + 16384])
+            if result.returncode:
+                return "Could not load the clipboard text into tmux."
+        result = run("tmux", "paste-buffer", "-p", "-d", "-b", buffer, "-t", pane)
+        if result.returncode:
+            return "Could not paste into the selected pane."
+    finally:
+        run("tmux", "delete-buffer", "-b", buffer)
+    return None
+
+
+def main():
+    if sys.argv[1:] == ["--help"]:
+        print("Usage: paste-primary PANE_ID")
+        return 0
+    if len(sys.argv) != 2:
+        print("Usage: paste-primary PANE_ID", file=sys.stderr)
+        return 2
+    pane = sys.argv[1]
+    try:
+        message = paste(pane)
+    except (OSError, UnicodeError) as error:
+        message = f"Middle click paste failed: {error}"
+    if message:
+        try:
+            run("tmux", "display-message", "-t", pane, "-d", "5000", "-l", message)
+        except OSError:
+            print(message, file=sys.stderr)
+    # Feedback was already displayed. Do not open tmux's run-shell viewer.
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

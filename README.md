@@ -14,6 +14,10 @@ The `*.defaults` files are managed by this repo and may be replaced on rerun.
 For settings that must run before managed bash defaults, such as `NO_TMUX=1`,
 place them above the source line in `~/.bashrc`.
 
+Middle click pastes the local X11 PRIMARY selection into any pane, including
+mouse-aware apps. If PRIMARY has no text, it falls back to CLIPBOARD (Ctrl+V).
+Empty selections show a status message. Tmux copy mode keeps its mouse handling.
+
 The tmux status bar shows CPU, memory, network rates, date/time, and hostname
 in a fixed layout, updated every second. Memory use excludes reclaimable cache;
 network rates follow the default-route interface. To select another interface,
@@ -125,6 +129,7 @@ configuration backup.
   `setup_linux.sh`.
 - `python3 test/status.py` checks the status worker's output, build safety, and
   process lifetime using a private tmux server.
+- `python3 test/paste-primary.py` checks middle click selection fallback and errors.
 - `python3 test/ssh-pane.py` checks SSH option parsing and pane process selection.
 - `bash test/clip-to-remote.sh` checks uploads and failure handling with isolated
   clipboard and SSH substitutes.
