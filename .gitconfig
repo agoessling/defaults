@@ -17,7 +17,7 @@
   lo = log --oneline --decorate
   no = diff --name-only
   st = status
-  wc = whatchanged
+  wc = log --raw --no-merges
   grepall = !git grep
 
 [color]

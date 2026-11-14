@@ -73,6 +73,9 @@ check_eq "git aliases resolve through include" "status" \
 check "profile swaps Caps-Lock" has_line "$HOME/.profile" \
   'if command -v setxkbmap >/dev/null 2>&1 && [ -n "${DISPLAY:-}" ]; then setxkbmap -option caps:escape; fi'
 
+check_eq "git wc uses supported log command" "log --raw --no-merges" \
+  "$(git config --global --includes --get alias.wc 2>/dev/null)"
+
 # An interactive shell picks up the managed bash configuration.
 check "interactive bash loads prompt helpers" \
   env NO_TMUX=1 bash -ic 'declare -F _parse_git_branch'
