@@ -86,6 +86,10 @@ check "clipboard helper current" \
   cmp -s "$repo_dir/bin/clip-to-remote" "$HOME/.local/bin/clip-to-remote"
 check "clipboard helper executable" "$HOME/.local/bin/clip-to-remote" --help
 
+check "middle click helper current" \
+  cmp -s "$repo_dir/bin/paste-primary" "$HOME/.local/bin/paste-primary"
+check "middle click helper executable" "$HOME/.local/bin/paste-primary" --help
+
 # tmux parses the configuration and every locked plugin is at its revision.
 check "tmux defaults current" \
   cmp -s "$repo_dir/tmux/.tmux.conf" "$HOME/.tmux.defaults.conf"
