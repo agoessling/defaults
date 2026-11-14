@@ -28,6 +28,26 @@ it needs no separate service or boot setup. To rebuild it without full setup,
 run `bash tmux/build-status.sh ~/.tmux/tmux-status-right`, then detach and
 reattach clients to use the new executable.
 
+`clip-to-remote` is a standalone Python 3 executable with no third party Python
+dependencies. `clip-to-remote HOST` uploads a copied screenshot from the local Linux desktop
+and copies its remote path to both CLIPBOARD (Ctrl+V) and PRIMARY (middle click)
+for pasting into Codex. It uses X11's `xclip` or
+Wayland's `wl-clipboard` (install separately on Wayland). Run it locally, with an
+SSH alias such as `nucky`; SSH must already work without a password prompt.
+Uploads get unique files under the remote `~/.cache/codex-images` (or
+`$XDG_CACHE_HOME/codex-images`); remove them when no longer needed. In local tmux, press **Ctrl+A, then U** to upload to the focused pane's SSH
+connection. The helper inspects Linux process arguments, keeps the original SSH
+alias and connection options (including config files, keys, ports, and jump
+hosts), and lets OpenSSH resolve its configuration. It ignores remote commands
+and disables forwards, backgrounding, and configured remote commands for the
+upload. Relative paths use the SSH process's working directory. Background SSH
+jobs and proxy child processes are excluded; an ambiguous or missing connection
+produces an error instead of choosing a host. Mosh and SSH connections started
+from inside the remote machine are not detected; use an explicit host for those.
+The shortcut shows success or error feedback in the tmux status line for five
+seconds. It only uploads and copies the path; paste it yourself afterward.
+Wayland PRIMARY requires compositor support.
+
 ## Recreate the workstation
 
 Start with Ubuntu 26.04 on x86_64, a normal desktop user with sudo access,
@@ -105,6 +125,9 @@ configuration backup.
   `setup_linux.sh`.
 - `python3 test/status.py` checks the status worker's output, build safety, and
   process lifetime using a private tmux server.
+- `python3 test/ssh-pane.py` checks SSH option parsing and pane process selection.
+- `bash test/clip-to-remote.sh` checks uploads and failure handling with isolated
+  clipboard and SSH substitutes.
 - `test/lint.sh` syntax-checks and ShellChecks the scripts. Enable it as a
   pre-commit hook with `git config core.hooksPath hooks`.
 - `test/run.sh [RELEASE]` provisions a fresh Ubuntu container (Docker) from

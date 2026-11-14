@@ -12,6 +12,13 @@ scripts=(
   test/*.sh hooks/*
 )
 
+# Compile in memory so lint does not create cache files beside executables.
+python3 - <<'PYTHON'
+from pathlib import Path
+for path in [Path("bin/clip-to-remote"), *Path("test").glob("*.py")]:
+    compile(path.read_bytes(), str(path), "exec")
+PYTHON
+
 cc -std=c11 -Wall -Wextra -Werror -fsyntax-only tmux/tmux-status.c
 
 for script in "${scripts[@]}"; do

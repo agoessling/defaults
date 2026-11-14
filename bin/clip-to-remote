@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""Upload a local screenshot to an explicit host or the focused tmux SSH pane."""
+import argparse
+import getopt
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+
+REMOTE_UPLOAD = r'''set -eu
+umask 077
+directory="${XDG_CACHE_HOME:-$HOME/.cache}/codex-images"
+mkdir -p -- "$directory"
+directory="$(cd "$directory" && pwd -P)"
+image="$(mktemp "$directory/screenshot-XXXXXXXX.png")"
+trap 'rm -f -- "$image"' EXIT
+trap 'exit 1' HUP INT TERM
+cat > "$image"
+test -s "$image"
+printf '%s\n' "$image"
+trap - EXIT
+'''
+
+# Put overrides first: OpenSSH keeps the first value for each setting.
+UPLOAD_OPTIONS = ["-T"]
+for setting in (
+    "BatchMode=yes", "ConnectTimeout=10", "RemoteCommand=none",
+    "SessionType=default", "RequestTTY=no", "StdinNull=no",
+    "ForkAfterAuthentication=no", "ClearAllForwardings=yes", "ControlMaster=no",
+    "ControlPersist=no", "PermitLocalCommand=no",
+):
+    UPLOAD_OPTIONS.extend(("-o", setting))
+
+
+def connection_args(argv):
+    # OpenSSH's command line grammar. Operational flags (PTY, forwards, remote
+    # commands, backgrounding, multiplex commands) must not affect the upload.
+    options, tail = getopt.getopt(argv[1:], "1246AaB:b:CD:c:E:e:F:fGgI:i:J:KkL:l:MmnNO:o:P:p:Q:qR:S:sTtVvW:w:XxYy")
+    if not tail or tail[0].startswith("-"):
+        raise ValueError("The SSH process has no unambiguous destination.")
+    if any(key in ("-O", "-Q", "-W", "-s", "-N", "-f") for key, _ in options):
+        raise ValueError("The pane is not an interactive SSH connection.")
+    result = []
+    for key, value in options:
+        if key in ("-4", "-6", "-C"):
+            result.append(key)
+        elif key in ("-B", "-b", "-c", "-F", "-I", "-i", "-J", "-l", "-m", "-o", "-P", "-p", "-S"):
+            result.extend((key, value))
+    # The first non-option is the alias/URI, not necessarily a DNS hostname.
+    # Ignore the original remote command (for example, tmux attach).
+    return result + ["--", tail[0]]
+
+
+def read_process(pid, root=Path("/proc")):
+    directory = root / str(pid)
+    stat = (directory / "stat").read_text()
+    fields = stat[stat.rindex(")") + 2:].split()
+    argv = [os.fsdecode(arg) for arg in (directory / "cmdline").read_bytes().split(b"\0") if arg]
+    return {"pid": pid, "ppid": int(fields[1]), "group": int(fields[2]),
+            "tty": int(fields[4]), "foreground": int(fields[5]), "argv": argv}
+
+
+def find_connection(pane_pid, root=Path("/proc")):
+    pane = read_process(pane_pid, root)
+    processes = {}
+    for directory in root.iterdir():
+        if directory.name.isdecimal():
+            try:
+                process = read_process(int(directory.name), root)
+                processes[process["pid"]] = process
+            except (OSError, ValueError):
+                continue  # Processes may exit while /proc is being read.
+    candidates = []
+    for process in processes.values():
+        argv = process["argv"]
+        if not argv or Path(argv[0]).name != "ssh":
+            continue
+        if not pane["tty"] or process["tty"] != pane["tty"] or process["group"] != pane["foreground"]:
+            continue
+        ancestors = []
+        current = process
+        while current["pid"] != pane_pid:
+            ancestors.append(current["ppid"])
+            if current["ppid"] not in processes or current["ppid"] in ancestors[:-1]:
+                break
+            current = processes[current["ppid"]]
+        else:
+            candidates.append((process, ancestors))
+    # A ProxyCommand may itself run ssh. Select the outer SSH process, whose
+    # arguments describe the actual destination, rather than its proxy child.
+    ids = {process["pid"] for process, _ in candidates}
+    outer = [process for process, ancestors in candidates if not ids.intersection(ancestors)]
+    if len(outer) != 1:
+        raise ValueError("Focus a pane with one foreground SSH connection, or run clip-to-remote HOST.")
+    return [str((root / str(outer[0]["pid"]) / "cwd").resolve(strict=True))] + connection_args(outer[0]["argv"])
+
+
+
+def notify(message, tmux_target=None):
+    if tmux_target:
+        try:
+            result = subprocess.run(
+                ["tmux", "display-message", "-t", tmux_target, "-d", "5000", "-l", message],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
+            if result.returncode == 0:
+                return
+        except OSError:
+            pass
+    if shutil.which("notify-send"):
+        try:
+            subprocess.run(["notify-send", "Screenshot upload", message],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=3, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+
+def clipboard_backend():
+    if os.environ.get("WAYLAND_DISPLAY"):
+        if not all(shutil.which(command) for command in ("wl-paste", "wl-copy")):
+            raise ValueError("Install wl-clipboard for Wayland clipboard access.")
+        return "wayland"
+    if os.environ.get("DISPLAY"):
+        if not shutil.which("xclip"):
+            raise ValueError("Install xclip for X11 clipboard access.")
+        return "x11"
+    raise ValueError("Run this on the local desktop, where the screenshot clipboard lives.")
+
+
+def upload(ssh_args, directory, tmux_target=None):
+    if sys.platform != "linux":
+        raise ValueError("This helper supports Linux desktops.")
+    if not shutil.which("ssh"):
+        raise ValueError("Install openssh-client first.")
+    backend = clipboard_backend()
+    read_command = (["wl-paste", "--type", "image/png"] if backend == "wayland"
+                    else ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"])
+    try:
+        image = subprocess.run(read_command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True).stdout
+    except subprocess.CalledProcessError as error:
+        raise ValueError("Copy a screenshot image first.") from error
+    if not image.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("The clipboard does not contain a PNG image.")
+
+    # No host, filename, or clipboard data is interpolated into shell code.
+    try:
+        result = subprocess.run(["ssh", *UPLOAD_OPTIONS, *ssh_args, REMOTE_UPLOAD],
+                                input=image, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=directory,
+                                check=True)
+    except subprocess.CalledProcessError as error:
+        detail = error.stderr.decode(errors="replace").strip().splitlines()
+        message = detail[-1] if detail else f"Check that ssh {ssh_args[-1]} works without a password prompt."
+        raise ValueError(f"Upload failed: {message}") from error
+    remote_path = result.stdout.rstrip(b"\n")
+    if not remote_path.startswith(b"/") or b"\n" in remote_path or b"\r" in remote_path or b"\0" in remote_path:
+        raise ValueError("The remote shell returned an unexpected path; clipboard was not changed.")
+    if not tmux_target:
+        sys.stdout.buffer.write(remote_path + b"\n")
+        sys.stdout.buffer.flush()
+    for selection in ("clipboard", "primary"):
+        if backend == "wayland":
+            command = ["wl-copy", "--type", "text/plain"]
+            if selection == "primary":
+                command.append("--primary")
+        else:
+            command = ["xclip", "-selection", selection, "-in"]
+        try:
+            # Clipboard tools may fork to own the selection. Do not capture
+            # their stdout: a child retaining the pipe would stall the upload.
+            subprocess.run(command, input=remote_path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        except subprocess.CalledProcessError as error:
+            raise ValueError(f"Uploaded {os.fsdecode(remote_path)}, but {selection} update failed.") from error
+    notify(f"Uploaded to {ssh_args[-1]}. Path copied for Ctrl+V and middle click.", tmux_target)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("host", nargs="?", help="SSH alias, hostname, URI, or user@host")
+    parser.add_argument("--pane", type=int, metavar="PANE_PID", help="infer SSH connection from this local tmux pane")
+    parser.add_argument("--tmux-target", metavar="PANE_ID", help="show feedback in tmux instead of printing output")
+    args = parser.parse_args()
+    if (args.host is None) == (args.pane is None):
+        parser.error("provide either HOST or --pane PANE_PID")
+    try:
+        if args.pane is not None:
+            directory, *ssh_args = find_connection(args.pane)
+        else:
+            if not args.host or args.host.startswith("-") or any(char.isspace() for char in args.host):
+                raise ValueError("Use an SSH host alias, hostname, URI, or user@host.")
+            directory, ssh_args = os.getcwd(), ["--", args.host]
+        upload(ssh_args, directory, args.tmux_target)
+    except (OSError, ValueError, getopt.GetoptError) as error:
+        if not args.tmux_target:
+            print(f"clip-to-remote: {error}", file=sys.stderr)
+        notify(f"Screenshot upload: {error}", args.tmux_target)
+        # Expected shortcut failures are already displayed in the status line.
+        # A nonzero exit makes tmux open its generic run-shell error viewer.
+        return 0 if args.tmux_target else 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
